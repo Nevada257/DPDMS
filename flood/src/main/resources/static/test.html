@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Flood Service Test</title>
+</head>
+
+<body>
+
+<h2>Create Flood Incident</h2>
+
+<form id="floodForm">
+
+    <label>District:</label>
+    <input type="text" id="district" required><br><br>
+
+    <label>Province:</label>
+    <input type="text" id="province" required><br><br>
+
+    <label>Ward:</label>
+    <input type="text" id="ward" required><br><br>
+
+    <label>Reporter:</label>
+    <input type="text" id="reporter" required><br><br>
+
+    <label>River Basin:</label>
+    <input type="text" id="riverBasin" required><br><br>
+
+    <label>Severity:</label>
+    <input type="text" id="severity" required><br><br>
+
+    <label>Status:</label>
+    <input type="text" id="status" required><br><br>
+
+    <label>Area Flooded:</label>
+    <input type="number" step="any" id="areaFlooded" required><br><br>
+
+    <label>Duration of Inundation:</label>
+    <input type="number" id="durationOfInundation" required><br><br>
+
+    <label>Households Displaced:</label>
+    <input type="number" id="householdsDisplaced" required><br><br>
+
+    <label>Latitude:</label>
+    <input type="number" step="any" id="latitude" required><br><br>
+
+    <label>Longitude:</label>
+    <input type="number" step="any" id="longitude" required><br><br>
+
+    <label>Peak Water Level:</label>
+    <input type="number" step="any" id="peakWaterLevel" required><br><br>
+
+    <label>Occurrence Date & Time:</label>
+    <input type="text" id="occurrenceDateTime" required><br><br>
+
+    <button type="submit">Create Flood Incident</button>
+
+</form>
+
+<h3>Response:</h3>
+
+<pre id="result"></pre>
+
+<script>
+
+document.getElementById("floodForm").addEventListener("submit", function(event) {
+
+    event.preventDefault();
+
+    const floodIncident = {
+
+        district: document.getElementById("district").value,
+        province: document.getElementById("province").value,
+        ward: document.getElementById("ward").value,
+        reporter: document.getElementById("reporter").value,
+        riverBasin: document.getElementById("riverBasin").value,
+        severity: document.getElementById("severity").value,
+        status: document.getElementById("status").value,
+
+        areaFlooded: Number(document.getElementById("areaFlooded").value),
+        durationOfInundation: Number(document.getElementById("durationOfInundation").value),
+        householdsDisplaced: Number(document.getElementById("householdsDisplaced").value),
+        latitude: Number(document.getElementById("latitude").value),
+        longitude: Number(document.getElementById("longitude").value),
+        peakWaterLevel: Number(document.getElementById("peakWaterLevel").value),
+
+        occurrenceDateTime:
+            document.getElementById("occurrenceDateTime").value
+
+    };
+
+    fetch("/api/floods", {
+
+        method: "POST",
+
+        headers: {
+            "Content-Type": "application/json"
+        },
+
+        body: JSON.stringify(floodIncident)
+
+    })
+
+    .then(response => response.json())
+
+    .then(data => {
+
+        document.getElementById("result").textContent =
+            JSON.stringify(data, null, 2);
+
+    })
+
+    .catch(error => {
+
+        document.getElementById("result").textContent =
+            "ERROR: " + error;
+
+    });
+
+});
+
+</script>
+<hr>
+
+<hr>
+
+<h2>Update Flood Incident</h2>
+
+<button type="button" onclick="updateIncident()">
+    Update Incident #1
+</button>
+
+<pre id="updateResult"></pre>
+
+<script>
+async function updateIncident() {
+
+    const updatedIncident = {
+        district: "harare",
+        province: "harare",
+        ward: "10",
+        reporter: "victor",
+        riverBasin: "manyame",
+        severity: "high",
+        status: "resolved",
+        areaFlooded: 24,
+        durationOfInundation: 6,
+        householdsDisplaced: 15,
+        latitude: -17.82,
+        longitude: 31.033,
+        peakWaterLevel: 2.5,
+        occurrenceDateTime: "2026-09-20T20:00:00"
+    };
+
+    document.getElementById("updateResult").textContent =
+        "Sending PUT request...";
+
+    try {
+
+        const response = await fetch("/api/floods/1", {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(updatedIncident)
+        });
+
+        const text = await response.text();
+
+        document.getElementById("updateResult").textContent =
+            "HTTP Status: " + response.status + "\n\n" + text;
+
+    } catch (error) {
+
+        document.getElementById("updateResult").textContent =
+            "ERROR: " + error;
+
+    }
+}
+</script>
+<hr>
+
+<h2>Delete Flood Incident</h2>
+
+<button type="button" onclick="deleteIncident()">
+    Delete Incident #1
+</button>
+
+<pre id="deleteResult"></pre>
+
+<script>
+async function deleteIncident() {
+
+    document.getElementById("deleteResult").textContent =
+        "Deleting...";
+
+    try {
+
+        const response = await fetch("/api/floods/1", {
+            method: "DELETE"
+        });
+
+        if (response.status === 204) {
+
+            document.getElementById("deleteResult").textContent =
+                "DELETE successful - Incident #1 deleted.";
+
+        } else {
+
+            const text = await response.text();
+
+            document.getElementById("deleteResult").textContent =
+                "HTTP Status: " + response.status + "\n" + text;
+        }
+
+    } catch (error) {
+
+        document.getElementById("deleteResult").textContent =
+            "ERROR: " + error;
+    }
+}
+</script>
+
+
+</body>
+
+</html>
