@@ -1,0 +1,45 @@
+body {
+    background: white !important;
+    font-family: Arial, sans-serif;
+}
+
+.swagger-ui .topbar {
+    background: white !important;
+    border-bottom: 1px solid #ddd;
+}
+
+.swagger-ui .topbar .download-url-wrapper {
+    display: none;
+}
+
+.swagger-ui .info .title {
+    color: #b00000 !important;
+}
+
+.swagger-ui .btn {
+    background: #c00000 !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 4px;
+}
+
+.swagger-ui .btn:hover {
+    background: #900000 !important;
+}
+
+.swagger-ui .execute-wrapper .execute {
+    background: #c00000 !important;
+    color: white !important;
+    border: none !important;
+}
+
+.swagger-ui .opblock-summary-method {
+    background: #c00000 !important;
+}
+
+.swagger-ui input,
+.swagger-ui textarea,
+.swagger-ui select {
+    border: 1px solid #ccc !important;
+    border-radius: 4px;
+}
