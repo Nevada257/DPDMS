@@ -33,20 +33,54 @@ public class DroughtIncidentController {
         return null;
     }
 
-    // ---------- CRUD ----------
+    private boolean isVisible(DroughtIncident incident, String role, String username) {
+        if (incident.getStatus() != null && incident.getStatus().equals("APPROVED")) {
+            return true;
+        }
+        if ("SUPERVISOR".equalsIgnoreCase(role)) {
+            return true;
+        }
+        if ("NATIONAL".equalsIgnoreCase(role)) {
+            return false;
+        }
+        return username != null && username.equalsIgnoreCase(incident.getReporter());
+    }
 
     @PreAuthorize("hasAnyRole('RECORDER','SUPERVISOR','NATIONAL')")
     @GetMapping
-    public List<DroughtIncident> getAll() {
-        return service.getAllIncidents();
+    public List<DroughtIncident> getAll(HttpServletRequest request) {
+        String token = extractToken(request);
+        List<DroughtIncident> all = service.getAllIncidents();
+
+        if (token == null) {
+            return all.stream().filter(i -> "APPROVED".equals(i.getStatus())).toList();
+        }
+
+        String role = jwtService.extractRole(token);
+        String username = jwtService.extractUsername(token);
+
+        return all.stream().filter(i -> isVisible(i, role, username)).toList();
     }
 
     @PreAuthorize("hasAnyRole('RECORDER','SUPERVISOR','NATIONAL')")
     @GetMapping("/{id}")
-    public ResponseEntity<DroughtIncident> getById(@PathVariable Long id) {
-        return service.getIncidentById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<DroughtIncident> getById(@PathVariable Long id, HttpServletRequest request) {
+
+        Optional<DroughtIncident> found = service.getIncidentById(id);
+
+        if (found.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        String token = extractToken(request);
+        String role = token != null ? jwtService.extractRole(token) : null;
+        String username = token != null ? jwtService.extractUsername(token) : null;
+
+        if (!isVisible(found.get(), role, username)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(found.get());
     }
 
     @PreAuthorize("hasRole('RECORDER')")
@@ -58,15 +92,20 @@ public class DroughtIncidentController {
         if (token != null) {
             String role = jwtService.extractRole(token);
             String ward = jwtService.extractWard(token);
+            String username = jwtService.extractUsername(token);
 
-            if ("RECORDER".equalsIgnoreCase(role)
-                    && ward != null
-                    && incident.getWard() != null
-                    && !ward.equalsIgnoreCase(incident.getWard())) {
+            if ("RECORDER".equalsIgnoreCase(role)) {
 
-                return ResponseEntity.status(403).body(
-                        Map.of("error", "Forbidden: you can only capture incidents for your own ward (" + ward + ")")
-                );
+                if (ward != null
+                        && incident.getWard() != null
+                        && !ward.equalsIgnoreCase(incident.getWard())) {
+
+                    return ResponseEntity.status(403).body(
+                            Map.of("error", "Forbidden: you can only capture incidents for your own ward (" + ward + ")")
+                    );
+                }
+
+                incident.setReporter(username);
             }
         }
 
@@ -132,8 +171,6 @@ public class DroughtIncidentController {
         return deleted ? ResponseEntity.noContent().build()
                 : ResponseEntity.notFound().build();
     }
-
-    // ---------- Workflow ----------
 
     @PreAuthorize("hasRole('SUPERVISOR')")
     @PatchMapping("/{id}/approve")

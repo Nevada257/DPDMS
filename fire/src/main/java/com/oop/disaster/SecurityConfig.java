@@ -89,6 +89,12 @@ public class SecurityConfig {
                         .hasRole("SUPERVISOR")
 
                         .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/fire-incidents/all"
+                        )
+                        .hasRole("SUPERVISOR")
+
+                        .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/fire-incidents"
                         )

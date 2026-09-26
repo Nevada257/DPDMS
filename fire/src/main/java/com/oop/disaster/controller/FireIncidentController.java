@@ -30,6 +30,19 @@ public class FireIncidentController {
         return null;
     }
 
+    private boolean isVisible(FireIncident incident, String role, String username) {
+        if (incident.getStatus() != null && incident.getStatus().name().equals("APPROVED")) {
+            return true;
+        }
+        if ("SUPERVISOR".equalsIgnoreCase(role)) {
+            return true;
+        }
+        if ("NATIONAL".equalsIgnoreCase(role)) {
+            return false;
+        }
+        return username != null && username.equalsIgnoreCase(incident.getReporter());
+    }
+
     @PostMapping
     public ResponseEntity<?> create(@RequestBody FireIncident incident, HttpServletRequest request) {
 
@@ -38,34 +51,63 @@ public class FireIncidentController {
         if (token != null) {
             String role = jwtService.extractRole(token);
             String ward = jwtService.extractWard(token);
+            String username = jwtService.extractUsername(token);
 
-            if ("RECORDER".equalsIgnoreCase(role)
-                    && ward != null
-                    && incident.getWard() != null
-                    && !ward.equalsIgnoreCase(incident.getWard())) {
+            if ("RECORDER".equalsIgnoreCase(role)) {
 
-                return ResponseEntity.status(403).body(
-                        Map.of("error", "Forbidden: you can only capture incidents for your own ward (" + ward + ")")
-                );
+                if (ward != null
+                        && incident.getWard() != null
+                        && !ward.equalsIgnoreCase(incident.getWard())) {
+
+                    return ResponseEntity.status(403).body(
+                            Map.of("error", "Forbidden: you can only capture incidents for your own ward (" + ward + ")")
+                    );
+                }
+
+                incident.setReporter(username);
             }
         }
 
         return ResponseEntity.ok(service.create(incident));
     }
 
+    // Default listing — visibility-filtered (this replaces the old blanket "hide all pending" behavior)
     @GetMapping
-    public List<FireIncident> getVisible() {
-        return service.getAllVisible();
+    public List<FireIncident> getVisible(HttpServletRequest request) {
+
+        String token = extractToken(request);
+        List<FireIncident> all = service.getAll();
+
+        if (token == null) {
+            return all.stream().filter(i -> i.getStatus() != null && i.getStatus().name().equals("APPROVED")).toList();
+        }
+
+        String role = jwtService.extractRole(token);
+        String username = jwtService.extractUsername(token);
+
+        return all.stream().filter(i -> isVisible(i, role, username)).toList();
     }
 
+    // Unfiltered listing — supervisor only (locked down in SecurityConfig)
     @GetMapping("/all")
     public List<FireIncident> getAll() {
         return service.getAll();
     }
 
     @GetMapping("/{id}")
-    public FireIncident getOne(@PathVariable Long id) {
-        return service.getOne(id);
+    public ResponseEntity<?> getOne(@PathVariable Long id, HttpServletRequest request) {
+
+        FireIncident incident = service.getOne(id);
+
+        String token = extractToken(request);
+        String role = token != null ? jwtService.extractRole(token) : null;
+        String username = token != null ? jwtService.extractUsername(token) : null;
+
+        if (!isVisible(incident, role, username)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(incident);
     }
 
     @PutMapping("/{id}")

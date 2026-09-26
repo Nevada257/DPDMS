@@ -35,7 +35,19 @@ public class FloodIncidentController {
         return null;
     }
 
-    // CREATE FLOOD INCIDENT
+    private boolean isVisible(FloodIncident incident, String role, String username) {
+        if (incident.getApprovalStatus() != null && incident.getApprovalStatus().equals("APPROVED")) {
+            return true;
+        }
+        if ("SUPERVISOR".equalsIgnoreCase(role)) {
+            return true;
+        }
+        if ("NATIONAL".equalsIgnoreCase(role)) {
+            return false;
+        }
+        return username != null && username.equalsIgnoreCase(incident.getReporter());
+    }
+
     @PostMapping
     public ResponseEntity<?> createIncident(
             @Valid @RequestBody FloodIncident incident,
@@ -46,15 +58,20 @@ public class FloodIncidentController {
         if (token != null) {
             String role = jwtService.extractRole(token);
             String ward = jwtService.extractWard(token);
+            String username = jwtService.extractUsername(token);
 
-            if ("RECORDER".equalsIgnoreCase(role)
-                    && ward != null
-                    && incident.getWard() != null
-                    && !ward.equalsIgnoreCase(incident.getWard())) {
+            if ("RECORDER".equalsIgnoreCase(role)) {
 
-                return ResponseEntity.status(403).body(
-                        Map.of("error", "Forbidden: you can only capture incidents for your own ward (" + ward + ")")
-                );
+                if (ward != null
+                        && incident.getWard() != null
+                        && !ward.equalsIgnoreCase(incident.getWard())) {
+
+                    return ResponseEntity.status(403).body(
+                            Map.of("error", "Forbidden: you can only capture incidents for your own ward (" + ward + ")")
+                    );
+                }
+
+                incident.setReporter(username);
             }
         }
 
@@ -63,29 +80,51 @@ public class FloodIncidentController {
         );
     }
 
-    // GET ALL FLOOD INCIDENTS
     @GetMapping
-    public List<FloodIncident> getAllIncidents() {
-        return service.getAllIncidents();
+    public List<FloodIncident> getAllIncidents(HttpServletRequest request) {
+
+        String token = extractToken(request);
+        List<FloodIncident> all = service.getAllIncidents();
+
+        if (token == null) {
+            return all.stream().filter(i -> "APPROVED".equals(i.getApprovalStatus())).toList();
+        }
+
+        String role = jwtService.extractRole(token);
+        String username = jwtService.extractUsername(token);
+
+        return all.stream()
+                .filter(i -> isVisible(i, role, username))
+                .toList();
     }
 
-    // GET APPROVED FLOOD INCIDENTS ONLY
     @GetMapping("/approved")
     public List<FloodIncident> getApprovedIncidents() {
         return service.getApprovedIncidents();
     }
 
-    // GET FLOOD INCIDENT BY ID
     @GetMapping("/{id}")
     public ResponseEntity<FloodIncident> getIncidentById(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            HttpServletRequest request) {
 
-        return service.getIncidentById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        Optional<FloodIncident> found = service.getIncidentById(id);
+
+        if (found.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        String token = extractToken(request);
+        String role = token != null ? jwtService.extractRole(token) : null;
+        String username = token != null ? jwtService.extractUsername(token) : null;
+
+        if (!isVisible(found.get(), role, username)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(found.get());
     }
 
-    // UPDATE FLOOD INCIDENT
     @PutMapping("/{id}")
     public ResponseEntity<?> updateIncident(
             @PathVariable Long id,
@@ -122,7 +161,6 @@ public class FloodIncidentController {
         }
     }
 
-    // APPROVE FLOOD INCIDENT
     @PostMapping("/{id}/approve")
     public ResponseEntity<?> approveIncident(
             @PathVariable Long id) {
@@ -139,7 +177,6 @@ public class FloodIncidentController {
         }
     }
 
-    // REJECT FLOOD INCIDENT
     @PostMapping("/{id}/reject")
     public ResponseEntity<?> rejectIncident(
             @PathVariable Long id,
@@ -159,7 +196,6 @@ public class FloodIncidentController {
         }
     }
 
-    // REQUEST CORRECTIONS
     @PostMapping("/{id}/corrections")
     public ResponseEntity<?> requestCorrections(
             @PathVariable Long id,
@@ -179,7 +215,6 @@ public class FloodIncidentController {
         }
     }
 
-    // GET AUDIT HISTORY
     @GetMapping("/{id}/audit")
     public ResponseEntity<List<FloodAuditLog>> getAuditHistory(
             @PathVariable Long id) {
@@ -189,7 +224,6 @@ public class FloodIncidentController {
         );
     }
 
-    // DELETE FLOOD INCIDENT
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteIncident(
             @PathVariable Long id,

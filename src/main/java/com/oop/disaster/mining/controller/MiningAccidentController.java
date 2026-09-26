@@ -30,6 +30,19 @@ public class MiningAccidentController {
         return null;
     }
 
+    private boolean isVisible(MiningAccident accident, String role, String username) {
+        if (accident.getStatus() != null && accident.getStatus().name().equals("APPROVED")) {
+            return true;
+        }
+        if ("SUPERVISOR".equalsIgnoreCase(role)) {
+            return true;
+        }
+        if ("NATIONAL".equalsIgnoreCase(role)) {
+            return false;
+        }
+        return username != null && username.equalsIgnoreCase(accident.getReporter());
+    }
+
     @PostMapping
     public ResponseEntity<?> create(@RequestBody MiningAccident accident,
                                      @RequestHeader(value = "X-Actor", defaultValue = "system") String actor,
@@ -40,15 +53,20 @@ public class MiningAccidentController {
         if (token != null) {
             String role = jwtService.extractRole(token);
             String ward = jwtService.extractWard(token);
+            String username = jwtService.extractUsername(token);
 
-            if ("RECORDER".equalsIgnoreCase(role)
-                    && ward != null
-                    && accident.getWard() != null
-                    && !ward.equalsIgnoreCase(accident.getWard())) {
+            if ("RECORDER".equalsIgnoreCase(role)) {
 
-                return ResponseEntity.status(403).body(
-                        Map.of("error", "Forbidden: you can only capture incidents for your own ward (" + ward + ")")
-                );
+                if (ward != null
+                        && accident.getWard() != null
+                        && !ward.equalsIgnoreCase(accident.getWard())) {
+
+                    return ResponseEntity.status(403).body(
+                            Map.of("error", "Forbidden: you can only capture incidents for your own ward (" + ward + ")")
+                    );
+                }
+
+                accident.setReporter(username);
             }
         }
 
@@ -56,10 +74,36 @@ public class MiningAccidentController {
     }
 
     @GetMapping
-    public List<MiningAccident> getAll() { return service.findAll(); }
+    public List<MiningAccident> getAll(HttpServletRequest request) {
+
+        String token = extractToken(request);
+        List<MiningAccident> all = service.findAll();
+
+        if (token == null) {
+            return all.stream().filter(a -> a.getStatus() != null && a.getStatus().name().equals("APPROVED")).toList();
+        }
+
+        String role = jwtService.extractRole(token);
+        String username = jwtService.extractUsername(token);
+
+        return all.stream().filter(a -> isVisible(a, role, username)).toList();
+    }
 
     @GetMapping("/{id}")
-    public MiningAccident getById(@PathVariable Long id) { return service.findById(id); }
+    public ResponseEntity<?> getById(@PathVariable Long id, HttpServletRequest request) {
+
+        MiningAccident accident = service.findById(id);
+
+        String token = extractToken(request);
+        String role = token != null ? jwtService.extractRole(token) : null;
+        String username = token != null ? jwtService.extractUsername(token) : null;
+
+        if (!isVisible(accident, role, username)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(accident);
+    }
 
     @GetMapping("/status/{status}")
     public List<MiningAccident> getByStatus(@PathVariable IncidentStatus status) { return service.findByStatus(status); }
