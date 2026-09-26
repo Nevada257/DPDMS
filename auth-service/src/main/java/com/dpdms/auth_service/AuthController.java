@@ -73,7 +73,9 @@ public class AuthController {
                 Map.of(
                         "token", token,
                         "username", user.getUsername(),
-                        "role", user.getRole()
+                        "role", user.getRole(),
+                        "hazardScope", user.getHazardScope() == null ? "" : user.getHazardScope(),
+                        "ward", user.getWard() == null ? "" : user.getWard()
                 )
         );
     }

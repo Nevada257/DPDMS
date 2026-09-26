@@ -39,6 +39,12 @@ public class JwtService {
                 .get("role", String.class);
     }
 
+    public String extractHazardScope(String token) {
+
+        return extractAllClaims(token)
+                .get("hazardScope", String.class);
+    }
+
     public boolean isValid(String token) {
 
         try {

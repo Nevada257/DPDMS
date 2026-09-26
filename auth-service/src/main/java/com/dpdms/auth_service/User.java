@@ -19,13 +19,23 @@ public class User {
     @Column(nullable = false)
     private String role;
 
+    // One of: FLOOD, DROUGHT, FIRE, ZOONOTIC, MINING, or ALL (for NATIONAL users)
+    @Column(nullable = true)
+    private String hazardScope;
+
+    // Only meaningful for RECORDER role; null for SUPERVISOR/NATIONAL
+    @Column(nullable = true)
+    private String ward;
+
     public User() {
     }
 
-    public User(String username, String password, String role) {
+    public User(String username, String password, String role, String hazardScope, String ward) {
         this.username = username;
         this.password = password;
         this.role = role;
+        this.hazardScope = hazardScope;
+        this.ward = ward;
     }
 
     public Long getId() {
@@ -54,5 +64,21 @@ public class User {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public String getHazardScope() {
+        return hazardScope;
+    }
+
+    public void setHazardScope(String hazardScope) {
+        this.hazardScope = hazardScope;
+    }
+
+    public String getWard() {
+        return ward;
+    }
+
+    public void setWard(String ward) {
+        this.ward = ward;
     }
 }

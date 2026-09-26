@@ -43,6 +43,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             String username = jwtService.extractUsername(token);
             String role = jwtService.extractRole(token);
+            String hazardScope = jwtService.extractHazardScope(token);
+
+            // HAZARD-LEVEL SCOPING: block tokens not meant for this service
+            if (hazardScope != null
+                    && !hazardScope.equalsIgnoreCase("FLOOD")
+                    && !hazardScope.equalsIgnoreCase("ALL")) {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\":\"Forbidden: token not valid for flood service\"}");
+                return;
+            }
 
             SimpleGrantedAuthority authority =
                     new SimpleGrantedAuthority("ROLE_" + role);
