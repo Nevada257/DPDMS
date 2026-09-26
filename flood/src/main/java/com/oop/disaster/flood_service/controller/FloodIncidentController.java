@@ -1,9 +1,11 @@
 package com.oop.disaster.flood_service.controller;
 
+import com.oop.disaster.flood_service.JwtService;
 import com.oop.disaster.flood_service.model.FloodAuditLog;
 import com.oop.disaster.flood_service.model.FloodIncident;
 import com.oop.disaster.flood_service.service.FloodIncidentService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
@@ -11,21 +13,50 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/floods")
 public class FloodIncidentController {
 
     private final FloodIncidentService service;
+    private final JwtService jwtService;
 
-    public FloodIncidentController(FloodIncidentService service) {
+    public FloodIncidentController(FloodIncidentService service, JwtService jwtService) {
         this.service = service;
+        this.jwtService = jwtService;
+    }
+
+    private String extractToken(HttpServletRequest request) {
+        String header = request.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            return header.substring(7);
+        }
+        return null;
     }
 
     // CREATE FLOOD INCIDENT
     @PostMapping
-    public ResponseEntity<FloodIncident> createIncident(
-            @Valid @RequestBody FloodIncident incident) {
+    public ResponseEntity<?> createIncident(
+            @Valid @RequestBody FloodIncident incident,
+            HttpServletRequest request) {
+
+        String token = extractToken(request);
+
+        if (token != null) {
+            String role = jwtService.extractRole(token);
+            String ward = jwtService.extractWard(token);
+
+            if ("RECORDER".equalsIgnoreCase(role)
+                    && ward != null
+                    && incident.getWard() != null
+                    && !ward.equalsIgnoreCase(incident.getWard())) {
+
+                return ResponseEntity.status(403).body(
+                        Map.of("error", "Forbidden: you can only capture incidents for your own ward (" + ward + ")")
+                );
+            }
+        }
 
         return ResponseEntity.ok(
                 service.createIncident(incident)
@@ -56,9 +87,30 @@ public class FloodIncidentController {
 
     // UPDATE FLOOD INCIDENT
     @PutMapping("/{id}")
-    public ResponseEntity<FloodIncident> updateIncident(
+    public ResponseEntity<?> updateIncident(
             @PathVariable Long id,
-            @Valid @RequestBody FloodIncident incident) {
+            @Valid @RequestBody FloodIncident incident,
+            HttpServletRequest request) {
+
+        String token = extractToken(request);
+
+        if (token != null) {
+            String role = jwtService.extractRole(token);
+            String ward = jwtService.extractWard(token);
+
+            if ("RECORDER".equalsIgnoreCase(role) && ward != null) {
+                Optional<FloodIncident> existing = service.getIncidentById(id);
+
+                if (existing.isPresent()
+                        && existing.get().getWard() != null
+                        && !ward.equalsIgnoreCase(existing.get().getWard())) {
+
+                    return ResponseEntity.status(403).body(
+                            Map.of("error", "Forbidden: this incident belongs to a different ward")
+                    );
+                }
+            }
+        }
 
         try {
             return ResponseEntity.ok(
@@ -139,8 +191,29 @@ public class FloodIncidentController {
 
     // DELETE FLOOD INCIDENT
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteIncident(
-            @PathVariable Long id) {
+    public ResponseEntity<?> deleteIncident(
+            @PathVariable Long id,
+            HttpServletRequest request) {
+
+        String token = extractToken(request);
+
+        if (token != null) {
+            String role = jwtService.extractRole(token);
+            String ward = jwtService.extractWard(token);
+
+            if ("RECORDER".equalsIgnoreCase(role) && ward != null) {
+                Optional<FloodIncident> existing = service.getIncidentById(id);
+
+                if (existing.isPresent()
+                        && existing.get().getWard() != null
+                        && !ward.equalsIgnoreCase(existing.get().getWard())) {
+
+                    return ResponseEntity.status(403).body(
+                            Map.of("error", "Forbidden: this incident belongs to a different ward")
+                    );
+                }
+            }
+        }
 
         service.deleteIncident(id);
 

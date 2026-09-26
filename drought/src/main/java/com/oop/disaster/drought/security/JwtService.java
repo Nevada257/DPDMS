@@ -34,6 +34,10 @@ public class JwtService {
         return extractClaim(token, claims -> claims.get("hazardScope", String.class));
     }
 
+    public String extractWard(String token) {
+        return extractClaim(token, claims -> claims.get("ward", String.class));
+    }
+
     public <T> T extractClaim(String token, Function<Claims, T> resolver) {
         Claims claims = Jwts.parserBuilder()
                 .setSigningKey(signingKey)
