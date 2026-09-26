@@ -13,7 +13,7 @@ import java.util.Date;
 public class JwtService {
 
     private static final String SECRET_KEY =
-            "ZoonoticDiseaseServiceSecretKey2026VeryLongSecretKey123456789";
+            "DPDMS-SECRET-KEY-FOR-JWT-AUTHENTICATION-2026-SECURE";
 
     private static final long EXPIRATION_TIME =
             1000 * 60 * 60; // 1 hour
