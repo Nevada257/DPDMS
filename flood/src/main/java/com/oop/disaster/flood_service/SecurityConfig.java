@@ -5,15 +5,12 @@ import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
+
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -21,37 +18,10 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @Configuration
 public class SecurityConfig {
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Bean
-    public UserDetailsService users(PasswordEncoder passwordEncoder) {
-
-        UserDetails recorder = User.builder()
-                .username("recorder")
-                .password(passwordEncoder.encode("recorder123"))
-                .roles("RECORDER")
-                .build();
-
-        UserDetails supervisor = User.builder()
-                .username("supervisor")
-                .password(passwordEncoder.encode("supervisor123"))
-                .roles("SUPERVISOR")
-                .build();
-
-        UserDetails national = User.builder()
-                .username("national")
-                .password(passwordEncoder.encode("national123"))
-                .roles("NATIONAL")
-                .build();
-
-        return new InMemoryUserDetailsManager(
-                recorder,
-                supervisor,
-                national
-        );
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
 
     @Bean
@@ -82,68 +52,78 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http)
-            throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http) throws Exception {
 
         http
                 .csrf(csrf -> csrf.disable())
 
-                .cors(Customizer.withDefaults())
+                .cors(cors -> cors.configurationSource(
+                        corsConfigurationSource()
+                ))
+
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS
+                        )
+                )
 
                 .authorizeHttpRequests(auth -> auth
 
-                        // Allow browser CORS preflight requests
                         .requestMatchers(HttpMethod.OPTIONS, "/**")
                         .permitAll()
 
-                        // Swagger/OpenAPI
                         .requestMatchers(
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
-                        ).permitAll()
+                        )
+                        .permitAll()
 
-                        // Supervisor-only approval workflow
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/floods/*/approve",
                                 "/api/floods/*/reject",
                                 "/api/floods/*/corrections"
-                        ).hasRole("SUPERVISOR")
+                        )
+                        .hasRole("SUPERVISOR")
 
-                        // Recorder can create flood incidents
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/floods"
-                        ).hasRole("RECORDER")
+                        )
+                        .hasRole("RECORDER")
 
-                        // Recorder can update flood incidents
                         .requestMatchers(
                                 HttpMethod.PUT,
                                 "/api/floods/*"
-                        ).hasRole("RECORDER")
+                        )
+                        .hasRole("RECORDER")
 
-                        // Recorder can delete flood incidents
                         .requestMatchers(
                                 HttpMethod.DELETE,
                                 "/api/floods/*"
-                        ).hasRole("RECORDER")
+                        )
+                        .hasRole("RECORDER")
 
-                        // Everyone with a valid role can READ
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/floods/**"
-                        ).hasAnyRole(
+                        )
+                        .hasAnyRole(
                                 "RECORDER",
                                 "SUPERVISOR",
                                 "NATIONAL"
                         )
 
-                        // Anything else requires authentication
-                        .anyRequest().authenticated()
+                        .anyRequest()
+                        .authenticated()
                 )
 
-                .httpBasic(Customizer.withDefaults());
+                .addFilterBefore(
+                        jwtAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class
+                );
 
         return http.build();
     }
