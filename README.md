@@ -278,14 +278,31 @@ It can be filtered by hazard, ward, district, severity and date range.
 
 ## 10. Reports
 
-**report-service** (port 8087) generates **PDF, Word (DOCX), Excel (XLSX) and CSV** files from a title, a list of columns and rows (`POST /api/reports/generate`). It is a reusable capability: no hazard service contains report code.
+**report-service** (port 8087) generates **PDF, Word (DOCX), Excel (XLSX) and CSV** files. It is the only place report code lives; no hazard service duplicates it. It offers two endpoints:
 
-From the dashboard, *Report: PDF / DOCX / XLSX / CSV* works like this:
-1. It fetches the filtered incidents from `GET /api/dashboard/incidents` (filters: hazard, ward, district, severity, date range). This feed contains **approved records only** and is limited to the user's hazard scope.
-2. It sends them to report-service.
-3. The browser downloads the generated file.
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/reports/incidents?format=PDF&hazard=&ward=&district=&severity=&from=&to=` | Incident report built from live data, downloadable directly through the API |
+| `POST /api/reports/generate` with `{title, format, columns, rows}` | Generic generator, used by the endpoint above and available to other services |
 
-Because the data comes from the dashboard feed, pending records can never reach a report.
+**Filters:** hazard, ward, district, severity and date range (`yyyy-MM-dd`, inclusive). **Approval status:** only approved records are ever included, as the brief requires for reports.
+
+**Where the data comes from.** `/api/reports/incidents` reads from dashboard-service with the **caller's own token**. That means:
+- the report contains **approved records only**;
+- it only covers the hazards the caller may see (a flood supervisor can never produce a drought report);
+- if the data source is down, report-service returns `503` with a clear message instead of failing silently.
+
+**Format details:**
+- PDF: landscape A4 table with the header repeated on every page, and a title, generation time and record count.
+- XLSX: bold header row.
+- CSV: correctly quoted.
+
+On the dashboard, the *Report: PDF / DOCX / XLSX / CSV* buttons call this endpoint with the current filters and download the file.
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" -o floods.pdf \
+  "http://localhost:8080/api/reports/incidents?format=PDF&hazard=FLOOD&from=2026-01-01"
+```
 
 ## 11. Shared incident model and key indicators
 
