@@ -11,6 +11,8 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.oop.disaster.flood_service.AlertClient;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,10 +35,13 @@ public class FloodIncidentController {
 
     private final FloodIncidentService service;
     private final JwtService jwtService;
+    private final AlertClient alertClient;
 
-    public FloodIncidentController(FloodIncidentService service, JwtService jwtService) {
+    public FloodIncidentController(FloodIncidentService service, JwtService jwtService,
+                                   AlertClient alertClient) {
         this.service = service;
         this.jwtService = jwtService;
+        this.alertClient = alertClient;
     }
 
     /** Identity of the caller, taken from the signed JWT. */
@@ -92,6 +97,19 @@ public class FloodIncidentController {
         return null;
     }
 
+    /** Sends the incident to the alert-service, which decides whether it meets the alert criteria. */
+    private FloodIncident raiseAlert(FloodIncident i) {
+        Map<String, Object> indicators = new LinkedHashMap<>();
+        indicators.put("peakWaterLevel", i.getPeakWaterLevel());
+        indicators.put("riverBasin", i.getRiverBasin());
+        indicators.put("householdsDisplaced", i.getHouseholdsDisplaced());
+        indicators.put("areaFlooded", i.getAreaFlooded());
+        indicators.put("durationOfInundation", i.getDurationOfInundation());
+        alertClient.notifyIncident("FLOOD", i.getId(), i.getWard(), i.getDistrict(), i.getProvince(),
+                i.getSeverity(), i.getLatitude(), i.getLongitude(), indicators);
+        return i;
+    }
+
     @PostMapping
     public ResponseEntity<?> createIncident(
             @Valid @RequestBody FloodIncident incident,
@@ -108,7 +126,7 @@ public class FloodIncidentController {
         }
         incident.setReporter(c.username());
 
-        return ResponseEntity.ok(service.createIncident(incident, c.username()));
+        return ResponseEntity.ok(raiseAlert(service.createIncident(incident, c.username())));
     }
 
     @GetMapping
@@ -159,7 +177,7 @@ public class FloodIncidentController {
             return forbidden("you can only capture incidents for your own ward (" + c.ward() + ")");
         }
 
-        return ResponseEntity.ok(service.updateIncident(id, incident, c.username()));
+        return ResponseEntity.ok(raiseAlert(service.updateIncident(id, incident, c.username())));
     }
 
     @PostMapping("/{id}/approve")

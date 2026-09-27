@@ -9,6 +9,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.oop.disaster.mining.service.AlertClient;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -31,10 +33,13 @@ public class MiningAccidentController {
 
     private final MiningAccidentService service;
     private final JwtService jwtService;
+    private final AlertClient alertClient;
 
-    public MiningAccidentController(MiningAccidentService service, JwtService jwtService) {
+    public MiningAccidentController(MiningAccidentService service, JwtService jwtService,
+                                    AlertClient alertClient) {
         this.service = service;
         this.jwtService = jwtService;
+        this.alertClient = alertClient;
     }
 
     record Caller(String username, String role, String ward) {
@@ -87,6 +92,20 @@ public class MiningAccidentController {
         return null;
     }
 
+    /** Sends the accident to the alert-service, which decides whether it meets the alert criteria. */
+    private MiningAccident raiseAlert(MiningAccident a) {
+        Map<String, Object> indicators = new LinkedHashMap<>();
+        indicators.put("mineName", a.getMineName());
+        indicators.put("mineType", a.getMineType());
+        indicators.put("accidentType", a.getAccidentType());
+        indicators.put("trappedOrInjuredMiners", a.getTrappedOrInjuredMiners());
+        indicators.put("fatalities", a.getFatalities());
+        indicators.put("rescueOperationsOngoing", a.getRescueOperationsOngoing());
+        alertClient.notifyIncident("MINING", a.getId(), a.getWard(), a.getDistrict(), a.getProvince(),
+                a.getSeverity(), a.getLatitude(), a.getLongitude(), indicators);
+        return a;
+    }
+
     @PostMapping
     public ResponseEntity<?> create(@RequestBody MiningAccident accident, HttpServletRequest request) {
         Caller c = caller(request);
@@ -100,7 +119,7 @@ public class MiningAccidentController {
         }
         accident.setReporter(c.username());
 
-        return ResponseEntity.ok(service.create(accident, c.username()));
+        return ResponseEntity.ok(raiseAlert(service.create(accident, c.username())));
     }
 
     @GetMapping
@@ -146,7 +165,7 @@ public class MiningAccidentController {
             return forbidden("you can only capture incidents for your own ward (" + c.ward() + ")");
         }
 
-        return ResponseEntity.ok(service.update(id, accident, c.username()));
+        return ResponseEntity.ok(raiseAlert(service.update(id, accident, c.username())));
     }
 
     @PostMapping("/{id}/approve")

@@ -8,6 +8,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.oop.disaster.service.AlertClient;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -29,10 +31,13 @@ public class FireIncidentController {
 
     private final FireIncidentService service;
     private final JwtService jwtService;
+    private final AlertClient alertClient;
 
-    public FireIncidentController(FireIncidentService service, JwtService jwtService) {
+    public FireIncidentController(FireIncidentService service, JwtService jwtService,
+                                  AlertClient alertClient) {
         this.service = service;
         this.jwtService = jwtService;
+        this.alertClient = alertClient;
     }
 
     /** Identity of the caller, taken from the signed JWT. */
@@ -88,6 +93,19 @@ public class FireIncidentController {
         return null;
     }
 
+    /** Sends the incident to the alert-service, which decides whether it meets the alert criteria. */
+    private FireIncident raiseAlert(FireIncident i) {
+        Map<String, Object> indicators = new LinkedHashMap<>();
+        indicators.put("areaBurned", i.getAreaBurned());
+        indicators.put("suspectedCause", i.getSuspectedCause());
+        indicators.put("injuriesOrFatalities", i.getInjuriesOrFatalities());
+        indicators.put("structuresDestroyed", i.getStructuresDestroyed());
+        indicators.put("active", i.isActive());
+        alertClient.notifyIncident("FIRE", i.getId(), i.getWard(), i.getDistrict(), i.getProvince(),
+                i.getSeverity(), i.getLatitude(), i.getLongitude(), indicators);
+        return i;
+    }
+
     @PostMapping
     public ResponseEntity<?> create(@RequestBody FireIncident incident, HttpServletRequest request) {
         Caller c = caller(request);
@@ -101,7 +119,7 @@ public class FireIncidentController {
         }
         incident.setReporter(c.username());
 
-        return ResponseEntity.ok(service.create(incident, c.username()));
+        return ResponseEntity.ok(raiseAlert(service.create(incident, c.username())));
     }
 
     @GetMapping
@@ -148,7 +166,7 @@ public class FireIncidentController {
             return forbidden("you can only capture incidents for your own ward (" + c.ward() + ")");
         }
 
-        return ResponseEntity.ok(service.update(id, incident, c.username()));
+        return ResponseEntity.ok(raiseAlert(service.update(id, incident, c.username())));
     }
 
     @DeleteMapping("/{id}")

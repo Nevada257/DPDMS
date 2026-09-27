@@ -10,6 +10,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import com.oop.disaster.drought.service.AlertClient;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,10 +35,13 @@ public class DroughtIncidentController {
 
     private final DroughtIncidentService service;
     private final JwtService jwtService;
+    private final AlertClient alertClient;
 
-    public DroughtIncidentController(DroughtIncidentService service, JwtService jwtService) {
+    public DroughtIncidentController(DroughtIncidentService service, JwtService jwtService,
+                                     AlertClient alertClient) {
         this.service = service;
         this.jwtService = jwtService;
+        this.alertClient = alertClient;
     }
 
     record Caller(String username, String role, String ward) {
@@ -122,6 +127,19 @@ public class DroughtIncidentController {
         return ResponseEntity.ok(service.getAuditTrail(id));
     }
 
+    /** Sends the incident to the alert-service, which decides whether it meets the alert criteria. */
+    private DroughtIncident raiseAlert(DroughtIncident i) {
+        Map<String, Object> indicators = new LinkedHashMap<>();
+        indicators.put("rainfallDeficitMm", i.getRainfallDeficitMm());
+        indicators.put("consecutiveDryDays", i.getConsecutiveDryDays());
+        indicators.put("cropFailurePercentage", i.getCropFailurePercentage());
+        indicators.put("peopleFacingWaterShortages", i.getPeopleFacingWaterShortages());
+        indicators.put("livestockMortalityCount", i.getLivestockMortalityCount());
+        alertClient.notifyIncident("DROUGHT", i.getId(), i.getWard(), i.getDistrict(), i.getProvince(),
+                i.getSeverity(), i.getLatitude(), i.getLongitude(), indicators);
+        return i;
+    }
+
     @PreAuthorize("hasRole('RECORDER')")
     @PostMapping
     public ResponseEntity<?> create(@Valid @RequestBody DroughtIncident incident, HttpServletRequest request) {
@@ -136,7 +154,7 @@ public class DroughtIncidentController {
         }
         incident.setReporter(c.username());
 
-        return ResponseEntity.ok(service.createIncident(incident));
+        return ResponseEntity.ok(raiseAlert(service.createIncident(incident)));
     }
 
     @PreAuthorize("hasRole('RECORDER')")
@@ -160,6 +178,7 @@ public class DroughtIncidentController {
         }
 
         return service.updateIncident(id, incident, c.username())
+                .map(this::raiseAlert)
                 .<ResponseEntity<?>>map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

@@ -16,24 +16,16 @@ public class FireIncidentService {
 
     private final FireIncidentRepository repository;
     private final AuditLogRepository auditLogRepository;
-    private final AlertService alertService;
-
     public FireIncidentService(FireIncidentRepository repository,
-                               AuditLogRepository auditLogRepository,
-                               AlertService alertService) {
+                               AuditLogRepository auditLogRepository) {
         this.repository = repository;
         this.auditLogRepository = auditLogRepository;
-        this.alertService = alertService;
     }
 
     public FireIncident create(FireIncident incident, String actor) {
         incident.setStatus(IncidentStatus.PENDING);
         FireIncident saved = repository.save(incident);
         audit(saved.getId(), actor, null, IncidentStatus.PENDING, "Fire incident captured");
-
-        if (saved.isActive()) {
-            alertService.dispatchForFire(saved);
-        }
         return saved;
     }
 
@@ -80,10 +72,6 @@ public class FireIncidentService {
                 before == IncidentStatus.NEEDS_CORRECTION
                         ? "Corrections made and incident resubmitted for approval"
                         : "Fire incident edited");
-
-        if (saved.isActive()) {
-            alertService.dispatchForFire(saved);
-        }
         return saved;
     }
 

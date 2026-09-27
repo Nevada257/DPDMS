@@ -96,12 +96,8 @@ public class SecurityConfig {
                         )
                         .hasAnyRole("SUPERVISOR", "ADMIN")
 
-                        // Manual alert re-send: supervisor only
-                        .requestMatchers("/api/alerts/fire/**")
-                        .hasRole("SUPERVISOR")
-
-                        // Alert log and audit trail: read-only oversight roles
-                        .requestMatchers(HttpMethod.GET, "/api/alerts/logs", "/api/audit/**")
+                        // Audit trail: read-only oversight roles
+                        .requestMatchers(HttpMethod.GET, "/api/audit/**")
                         .hasAnyRole("SUPERVISOR", "ADMIN", "NATIONAL")
 
                         .requestMatchers(
