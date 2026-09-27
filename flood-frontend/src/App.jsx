@@ -2,6 +2,7 @@ import { useState } from "react";
 import "./App.css";
 import NationalDashboard from "./NationalDashboard";
 import DroughtPanel from "./DroughtPanel";
+import FirePanel from "./FirePanel";
 
 
 import {
@@ -545,7 +546,13 @@ function App() {
       <DroughtPanel credentials={credentials} onLogout={logout} />
     );
   }
-  // DASHBOARD
+   if (credentials.hazardScope === "FIRE") {
+    return (
+      <FirePanel credentials={credentials} onLogout={logout} />
+    );
+  }
+
+ // DASHBOARD
   // --------------------------------------------------
 
   return (
