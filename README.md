@@ -381,7 +381,8 @@ cd <service> && ./mvnw test
 | Alert criteria | `AlertRulesTest`: every hazard's threshold, both sides |
 | Alert API scoping | `AlertControllerSecurityTest` (MockMvc): cross-hazard and national alerts rejected, log scoping, admin-only subscribers |
 | Dashboard | `DashboardServiceTest`: scoping, pending records dropped, normalisation, date filters, trends, graceful degradation |
-| Integration | `DroughtIncidentControllerTest` (Spring Boot + database) |
+| API integration (over HTTP) | `FloodApiIntegrationTest`, `DroughtApiIntegrationTest`, `FireApiIntegrationTest`, `MiningApiIntegrationTest`: each service started on a random port with its real database; signed tokens prove capture → PENDING, pending hidden from national users, national / other-hazard / other-ward writes → 403, only the hazard supervisor approves, approved records published and locked |
+| Continuous integration | GitHub Actions builds and tests all 11 Maven projects and the front end on every push (`.github/workflows/build.yml`) |
 
 ## 14. Non-functional requirements
 
