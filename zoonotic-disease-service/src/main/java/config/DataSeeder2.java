@@ -16,6 +16,17 @@ public class DataSeeder2 {
     CommandLineRunner seedZoonoticUsers(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         return args -> {
 
+            // Local profile for the provincial administrator (added later, so seeded independently)
+            if (userRepository.findByUsername("provincial_admin").isEmpty()) {
+                userRepository.save(new User(
+                        "provincial_admin",
+                        passwordEncoder.encode("password123"),
+                        Role.PROVINCIAL_ADMIN,
+                        null,
+                        "Mashonaland Central"
+                ));
+            }
+
             if (userRepository.findByUsername("zoonotic_recorder").isPresent()) {
                 System.out.println(">>> Zoonotic local users already exist. Skipping seed.");
                 return;

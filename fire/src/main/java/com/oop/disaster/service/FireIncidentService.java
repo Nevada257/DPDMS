@@ -26,9 +26,10 @@ public class FireIncidentService {
         this.alertService = alertService;
     }
 
-    public FireIncident create(FireIncident incident) {
+    public FireIncident create(FireIncident incident, String actor) {
         incident.setStatus(IncidentStatus.PENDING);
         FireIncident saved = repository.save(incident);
+        audit(saved.getId(), actor, null, IncidentStatus.PENDING, "Fire incident captured");
 
         if (saved.isActive()) {
             alertService.dispatchForFire(saved);
@@ -51,14 +52,13 @@ public class FireIncidentService {
                 .orElseThrow(() -> new RuntimeException("Fire incident not found"));
     }
 
-    public FireIncident update(Long id, FireIncident incoming) {
+    public FireIncident update(Long id, FireIncident incoming, String actor) {
         FireIncident existing = getOne(id);
 
         existing.setWard(incoming.getWard());
         existing.setDistrict(incoming.getDistrict());
         existing.setProvince(incoming.getProvince());
         existing.setOccurrenceTime(incoming.getOccurrenceTime());
-        existing.setReporter(incoming.getReporter());
         existing.setReporterEmail(incoming.getReporterEmail());
         existing.setReporterPhone(incoming.getReporterPhone());
         existing.setSeverity(incoming.getSeverity());
@@ -70,11 +70,16 @@ public class FireIncidentService {
         existing.setStructuresDestroyed(incoming.getStructuresDestroyed());
         existing.setActive(incoming.isActive());
 
-        if (existing.getStatus() == IncidentStatus.NEEDS_CORRECTION) {
+        IncidentStatus before = existing.getStatus();
+        if (before == IncidentStatus.NEEDS_CORRECTION) {
             existing.setStatus(IncidentStatus.PENDING);
         }
 
         FireIncident saved = repository.save(existing);
+        audit(id, actor, before, saved.getStatus(),
+                before == IncidentStatus.NEEDS_CORRECTION
+                        ? "Corrections made and incident resubmitted for approval"
+                        : "Fire incident edited");
 
         if (saved.isActive()) {
             alertService.dispatchForFire(saved);
@@ -82,8 +87,10 @@ public class FireIncidentService {
         return saved;
     }
 
-    public void delete(Long id) {
+    public void delete(Long id, String actor) {
+        FireIncident existing = getOne(id);
         repository.deleteById(id);
+        audit(id, actor, existing.getStatus(), null, "Fire incident deleted");
     }
 
     public FireIncident changeStatus(Long id, IncidentStatus newStatus,
@@ -91,18 +98,29 @@ public class FireIncidentService {
         FireIncident incident = getOne(id);
         IncidentStatus oldStatus = incident.getStatus();
 
+        // Only records awaiting a decision can be approved, rejected or sent back.
+        if (oldStatus != IncidentStatus.PENDING) {
+            throw new IllegalStateException(
+                    "Only PENDING incidents can be moved to " + newStatus + " (current: " + oldStatus + ")");
+        }
+        if (newStatus != IncidentStatus.APPROVED && (reason == null || reason.isBlank())) {
+            throw new IllegalArgumentException("A reason is required");
+        }
+
         incident.setStatus(newStatus);
         FireIncident saved = repository.save(incident);
+        audit(id, changedBy, oldStatus, newStatus, reason);
+        return saved;
+    }
 
+    private void audit(Long incidentId, String actor, IncidentStatus from, IncidentStatus to, String reason) {
         AuditLog log = new AuditLog();
-        log.setIncidentId(id);
-        log.setChangedBy(changedBy);
+        log.setIncidentId(incidentId);
+        log.setChangedBy(actor);
         log.setChangedAt(LocalDateTime.now());
-        log.setOldStatus(oldStatus.name());
-        log.setNewStatus(newStatus.name());
+        log.setOldStatus(from == null ? null : from.name());
+        log.setNewStatus(to == null ? "DELETED" : to.name());
         log.setReason(reason);
         auditLogRepository.save(log);
-
-        return saved;
     }
 }

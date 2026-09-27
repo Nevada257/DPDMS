@@ -17,7 +17,7 @@ public class JwtService {
     //    It's loaded from an environment variable or application.properties.
     private final SecretKey signingKey;
 
-    public JwtService(@org.springframework.beans.factory.annotation.Value("${jwt.secret:changeThisDefaultSecretKeyTo32CharsMin}") String secret) {
+    public JwtService(@org.springframework.beans.factory.annotation.Value("${jwt.secret}") String secret) {
         // Secret must be at least 32 characters for HS256
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes());
     }

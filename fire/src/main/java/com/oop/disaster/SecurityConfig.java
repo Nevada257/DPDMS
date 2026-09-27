@@ -74,6 +74,8 @@ public class SecurityConfig {
                         .permitAll()
 
                         .requestMatchers(
+                                "/actuator/health",
+                                "/actuator/info",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
@@ -92,7 +94,15 @@ public class SecurityConfig {
                                 HttpMethod.GET,
                                 "/api/fire-incidents/all"
                         )
+                        .hasAnyRole("SUPERVISOR", "ADMIN")
+
+                        // Manual alert re-send: supervisor only
+                        .requestMatchers("/api/alerts/fire/**")
                         .hasRole("SUPERVISOR")
+
+                        // Alert log and audit trail: read-only oversight roles
+                        .requestMatchers(HttpMethod.GET, "/api/alerts/logs", "/api/audit/**")
+                        .hasAnyRole("SUPERVISOR", "ADMIN", "NATIONAL")
 
                         .requestMatchers(
                                 HttpMethod.POST,
@@ -119,6 +129,7 @@ public class SecurityConfig {
                         .hasAnyRole(
                                 "RECORDER",
                                 "SUPERVISOR",
+                                "ADMIN",
                                 "NATIONAL"
                         )
 

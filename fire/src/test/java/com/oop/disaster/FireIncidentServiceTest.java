@@ -26,7 +26,7 @@ class FireIncidentServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         FireIncidentService service = new FireIncidentService(repository, audit, alerts);
-        FireIncident result = service.create(input);
+        FireIncident result = service.create(input, "fire_recorder");
 
         assertEquals(IncidentStatus.PENDING, result.getStatus());
     }

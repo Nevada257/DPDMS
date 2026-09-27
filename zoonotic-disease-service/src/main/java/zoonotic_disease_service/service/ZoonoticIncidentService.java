@@ -98,7 +98,9 @@ public class ZoonoticIncidentService {
         // ------------------------------------------------------
 
         if (currentUser.getRole() ==
-                Role.PROVINCIAL_SUPERVISOR) {
+                Role.PROVINCIAL_SUPERVISOR
+                || currentUser.getRole() ==
+                Role.PROVINCIAL_ADMIN) {
 
             return repository.findByProvince(
                     currentUser.getProvince()
@@ -485,12 +487,14 @@ public class ZoonoticIncidentService {
             User user,
             ZoonoticIncident incident) {
 
-        // National users are read-only
+        // National users and the provincial administrator are read-only
         if (user.getRole() ==
-                Role.NATIONAL_USER) {
+                Role.NATIONAL_USER
+                || user.getRole() ==
+                Role.PROVINCIAL_ADMIN) {
 
             throw new SecurityException(
-                    "National users are read-only"
+                    user.getRole() + " users are read-only"
             );
         }
 
@@ -612,7 +616,9 @@ public class ZoonoticIncidentService {
         // ------------------------------------------------------
 
         if (user.getRole() ==
-                Role.PROVINCIAL_SUPERVISOR) {
+                Role.PROVINCIAL_SUPERVISOR
+                || user.getRole() ==
+                Role.PROVINCIAL_ADMIN) {
 
             checkProvinceScope(
                     user,

@@ -84,7 +84,8 @@ class DroughtIncidentControllerTest {
         DroughtIncident approved = service.approveIncident(saved.getId(), "supervisor1")
                 .orElseThrow();
         assertEquals("APPROVED", approved.getStatus());
-        assertEquals(1, auditRepo.findByIncidentIdOrderByPerformedAtAsc(saved.getId()).size());
+        // one entry for CREATED, one for APPROVED
+        assertEquals(2, auditRepo.findByIncidentIdOrderByPerformedAtAsc(saved.getId()).size());
     }
 
     @Test

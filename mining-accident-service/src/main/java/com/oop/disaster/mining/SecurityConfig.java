@@ -74,6 +74,8 @@ public class SecurityConfig {
                         .permitAll()
 
                         .requestMatchers(
+                                "/actuator/health",
+                                "/actuator/info",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
@@ -113,6 +115,7 @@ public class SecurityConfig {
                         .hasAnyRole(
                                 "RECORDER",
                                 "SUPERVISOR",
+                                "ADMIN",
                                 "NATIONAL"
                         )
 

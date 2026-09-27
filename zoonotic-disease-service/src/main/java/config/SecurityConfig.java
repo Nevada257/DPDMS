@@ -67,6 +67,8 @@ public class SecurityConfig {
                         // =========================
 
                         .requestMatchers(
+                                "/actuator/health",
+                                "/actuator/info",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
@@ -102,6 +104,7 @@ public class SecurityConfig {
                                 "/api/audit-trails/*"
                         ).hasAnyRole(
                                 "PROVINCIAL_SUPERVISOR",
+                                "PROVINCIAL_ADMIN",
                                 "NATIONAL_USER"
                         )
 
@@ -127,6 +130,7 @@ public class SecurityConfig {
                         ).hasAnyRole(
                                 "WARD_RECORDER",
                                 "PROVINCIAL_SUPERVISOR",
+                                "PROVINCIAL_ADMIN",
                                 "NATIONAL_USER"
                         )
 
@@ -140,6 +144,7 @@ public class SecurityConfig {
                         ).hasAnyRole(
                                 "WARD_RECORDER",
                                 "PROVINCIAL_SUPERVISOR",
+                                "PROVINCIAL_ADMIN",
                                 "NATIONAL_USER"
                         )
 
