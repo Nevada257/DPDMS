@@ -32,17 +32,24 @@ Get-Content $envFile | Where-Object { $_ -match '^\s*[A-Z_]+=' } | ForEach-Objec
 # ONE window called "dpdms". Otherwise each service gets its own window.
 $useTabs = [bool](Get-Command wt.exe -ErrorAction SilentlyContinue)
 
+$runner = Join-Path $PSScriptRoot "run-service.ps1"
+
+# Opens one service: a tab in the "dpdms" Windows Terminal window, or its own window.
+# Each one loads dpdms.env itself (run-service.ps1), so tabs always get the settings.
+function Open-Service($folder) {
+    if ($useTabs) {
+        Start-Process wt.exe -ArgumentList @("-w", "dpdms", "new-tab", "--title", $folder,
+            "powershell", "-NoExit", "-ExecutionPolicy", "Bypass", "-File", "`"$runner`"", $folder)
+    } else {
+        Start-Process powershell -ArgumentList @("-NoExit", "-ExecutionPolicy", "Bypass", "-File", "`"$runner`"", $folder)
+    }
+}
+
 function Start-Service($folder, $waitSeconds) {
     $path = Join-Path $root $folder
     if (-not (Test-Path $path)) { Write-Warning "$folder not found - skipped"; return }
     Write-Host "Starting $folder ..."
-    if ($useTabs) {
-        Start-Process wt.exe -ArgumentList @("-w", "dpdms", "new-tab", "--title", $folder, "-d", "`"$path`"",
-            "powershell", "-NoExit", "-Command", ".\mvnw.cmd -q spring-boot:run")
-    } else {
-        Start-Process powershell -WorkingDirectory $path -ArgumentList "-NoExit", "-Command",
-            "`$host.UI.RawUI.WindowTitle = '$folder'; .\mvnw.cmd -q spring-boot:run"
-    }
+    Open-Service $folder
     Start-Sleep -Seconds $waitSeconds
 }
 
@@ -88,13 +95,7 @@ if (-not (Test-Path (Join-Path $frontend "node_modules"))) {
     Write-Host "Installing front-end packages (first run only) ..."
     Push-Location $frontend; npm install; Pop-Location
 }
-if ($useTabs) {
-    Start-Process wt.exe -ArgumentList @("-w", "dpdms", "new-tab", "--title", "frontend", "-d", "`"$frontend`"",
-        "powershell", "-NoExit", "-Command", "npm run dev")
-} else {
-    Start-Process powershell -WorkingDirectory $frontend -ArgumentList "-NoExit", "-Command",
-        "`$host.UI.RawUI.WindowTitle = 'frontend'; npm run dev"
-}
+Open-Service "flood-frontend"
 
 Write-Host ""
 Write-Host "Eureka dashboard : http://localhost:8761"
