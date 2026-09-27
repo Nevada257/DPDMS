@@ -1,6 +1,19 @@
-# Starts the whole DPDMS stack on Windows, each service in its own window.
-# Usage (from the repository root):   powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1
+# Starts DPDMS on Windows, each service in its own window.
+#
+#   Whole system:
+#     powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1
+#   One or more hazards only (plus Eureka, auth, gateway and the front end):
+#     powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1 -Only flood
+#     powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1 -Only flood,fire
+#   Hazard names: flood, drought, fire, zoonotic, mining
+#   Add -WithExtras to also start alert, report and dashboard services.
+#
 # Prerequisites: JDK 21, MySQL 8 running, Node 20+, and a filled-in dpdms.env
+
+param(
+    [string[]]$Only = @(),
+    [switch]$WithExtras
+)
 
 $root = Split-Path -Parent $PSScriptRoot
 $envFile = Join-Path $root "dpdms.env"
@@ -24,17 +37,37 @@ function Start-Service($folder, $waitSeconds) {
     Start-Sleep -Seconds $waitSeconds
 }
 
+$hazardFolders = [ordered]@{
+    flood    = "flood"
+    drought  = "drought"
+    fire     = "fire"
+    zoonotic = "zoonotic-disease-service"
+    mining   = "mining-accident-service"
+}
+
+if ($Only.Count -gt 0) {
+    foreach ($h in $Only) {
+        if (-not $hazardFolders.Contains($h.ToLower())) {
+            Write-Error "Unknown hazard '$h'. Use: $($hazardFolders.Keys -join ', ')"
+            exit 1
+        }
+    }
+    $hazards = $Only | ForEach-Object { $hazardFolders[$_.ToLower()] }
+    $extras = $WithExtras.IsPresent
+} else {
+    $hazards = $hazardFolders.Values
+    $extras = $true
+}
+
 # Order matters: discovery first, then auth, services, gateway last
 Start-Service "discovery-service"        25
 Start-Service "auth-service"             15
-Start-Service "flood"                    5
-Start-Service "drought"                  5
-Start-Service "fire"                     5
-Start-Service "zoonotic-disease-service" 5
-Start-Service "mining-accident-service"  5
-Start-Service "alert-service"            5
-Start-Service "report-service"           5
-Start-Service "dashboard-service"        20
+foreach ($folder in $hazards) { Start-Service $folder 5 }
+if ($extras) {
+    Start-Service "alert-service"            5
+    Start-Service "report-service"           5
+    Start-Service "dashboard-service"        20
+}
 Start-Service "dpdms-api-gateway"        15
 
 Write-Host "Starting front end ..."

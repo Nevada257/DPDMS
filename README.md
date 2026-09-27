@@ -120,6 +120,15 @@ Or run the files in [`database/`](database/) in order with any MySQL client. Use
 powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1
 ```
 
+**Only some hazards** (each hazard service runs on its own; Eureka, auth, gateway and the front end are always started):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1 -Only flood
+powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1 -Only flood,fire -WithExtras   # + alert, report, dashboard
+```
+
+Services that are not running simply degrade: alerts are skipped, and the dashboard lists the missing hazards as unavailable.
+
 **Manually,** in this order, each in its own terminal with the environment variables set:
 
 ```bash
