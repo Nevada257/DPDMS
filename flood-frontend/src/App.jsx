@@ -4,6 +4,7 @@ import NationalDashboard from "./NationalDashboard";
 import DroughtPanel from "./DroughtPanel";
 import FirePanel from "./FirePanel";
 import MiningPanel from "./MiningPanel";
+import ZoonoticPanel from "./ZoonoticPanel";
 
 
 import {
@@ -556,6 +557,12 @@ function App() {
   if (credentials.hazardScope === "MINING") {
     return (
       <MiningPanel credentials={credentials} onLogout={logout} />
+    );
+  }
+
+  if (credentials.hazardScope === "ZOONOTIC") {
+    return (
+      <ZoonoticPanel credentials={credentials} onLogout={logout} />
     );
   }
 

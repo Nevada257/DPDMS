@@ -1,13 +1,17 @@
 import { useState, useEffect } from "react";
+import DroughtPanel from "./DroughtPanel";
+import FirePanel from "./FirePanel";
+import MiningPanel from "./MiningPanel";
+import ZoonoticPanel from "./ZoonoticPanel";
 
 const API_URL = "http://localhost:8080";
 
 const HAZARDS = [
-  { key: "flood", label: "Flood", path: "/api/floods", color: "#2563eb" },
-  { key: "drought", label: "Drought", path: "/api/drought/incidents", color: "#d97706" },
-  { key: "fire", label: "Fire", path: "/api/fire-incidents", color: "#dc2626" },
-  { key: "zoonotic", label: "Zoonotic Disease", path: "/api/zoonotic-incidents", color: "#7c3aed" },
-  { key: "mining", label: "Mining Accident", path: "/api/mining-accidents", color: "#4b5563" }
+  { key: "flood", label: "Flood", path: "/api/floods", color: "#2563eb", drillable: false },
+  { key: "drought", label: "Drought", path: "/api/drought/incidents", color: "#d97706", drillable: true },
+  { key: "fire", label: "Fire", path: "/api/fire-incidents", color: "#dc2626", drillable: true },
+  { key: "zoonotic", label: "Zoonotic Disease", path: "/api/zoonotic-incidents", color: "#7c3aed", drillable: true },
+  { key: "mining", label: "Mining Accident", path: "/api/mining-accidents", color: "#4b5563", drillable: true }
 ];
 
 function NationalDashboard({ credentials, onLogout }) {
@@ -15,6 +19,7 @@ function NationalDashboard({ credentials, onLogout }) {
   const [allIncidents, setAllIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [activePanel, setActivePanel] = useState(null);
 
   useEffect(() => {
     loadAll();
@@ -67,6 +72,22 @@ function NationalDashboard({ credentials, onLogout }) {
     setLoading(false);
   };
 
+  // Drill-in: show the actual hazard panel (read-only for a national user,
+  // since those panels already hide create/approve buttons for any role
+  // other than RECORDER/SUPERVISOR).
+  if (activePanel === "drought") {
+    return <DroughtPanel credentials={credentials} onLogout={onLogout} onBack={() => setActivePanel(null)} />;
+  }
+  if (activePanel === "fire") {
+    return <FirePanel credentials={credentials} onLogout={onLogout} onBack={() => setActivePanel(null)} />;
+  }
+  if (activePanel === "mining") {
+    return <MiningPanel credentials={credentials} onLogout={onLogout} onBack={() => setActivePanel(null)} />;
+  }
+  if (activePanel === "zoonotic") {
+    return <ZoonoticPanel credentials={credentials} onLogout={onLogout} onBack={() => setActivePanel(null)} />;
+  }
+
   const totalApproved = Object.values(counts).reduce(
     (sum, n) => sum + n,
     0
@@ -116,7 +137,7 @@ function NationalDashboard({ credentials, onLogout }) {
       <div style={{ padding: "32px" }}>
         <h2 style={{ textAlign: "center" }}>National Dashboard</h2>
         <p style={{ textAlign: "center", color: "#6b7280" }}>
-          Approved incidents across all five hazards.
+          Approved incidents across all five hazards. Click a hazard card to view its full panel.
         </p>
 
         {loading && (
@@ -157,19 +178,27 @@ function NationalDashboard({ credentials, onLogout }) {
               {HAZARDS.map((hazard) => (
                 <div
                   key={hazard.key}
+                  onClick={() => hazard.drillable && setActivePanel(hazard.key)}
                   style={{
                     background: "white",
                     borderRadius: "10px",
                     padding: "20px",
                     textAlign: "center",
                     borderLeft: `4px solid ${hazard.color}`,
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                    cursor: hazard.drillable ? "pointer" : "default",
+                    position: "relative"
                   }}
                 >
                   <div style={{ color: "#6b7280" }}>{hazard.label}</div>
                   <div style={{ fontSize: "32px", fontWeight: "bold" }}>
                     {counts[hazard.key] ?? 0}
                   </div>
+                  {hazard.drillable && (
+                    <div style={{ fontSize: "11px", color: hazard.color, marginTop: "4px" }}>
+                      Click to view →
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

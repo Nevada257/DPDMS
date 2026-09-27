@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 
 const API_URL = "http://localhost:8080";
 
-function MiningPanel({ credentials, onLogout }) {
+function MiningPanel({ credentials, onLogout, onBack }) {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -225,7 +225,24 @@ function MiningPanel({ credentials, onLogout }) {
         <div style={{ textAlign: "right" }}>
           <div style={{ fontWeight: "bold" }}>{credentials.username}</div>
           <div style={{ opacity: 0.85, fontSize: "14px" }}>{credentials.role}</div>
-          <button
+          {onBack && (
+            <button
+              onClick={onBack}
+              style={{
+                marginTop: "8px",
+                marginRight: "8px",
+                background: "white",
+                color: "#4b5563",
+                border: "none",
+                borderRadius: "6px",
+                padding: "6px 16px",
+                cursor: "pointer",
+                fontWeight: "bold"
+              }}
+            >
+              ← Back to Dashboard
+            </button>
+          )}          <button
             onClick={onLogout}
             style={{
               marginTop: "8px",

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 
 const API_URL = "http://localhost:8080";
 
-function DroughtPanel({ credentials, onLogout, onBack }) {
+function ZoonoticPanel({ credentials, onLogout, onBack }) {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -14,15 +14,16 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
     ward: credentials.ward || "",
     district: "",
     province: "",
-    dateTimeOfOccurrence: "",
+    occurrenceDateTime: "",
+    reporter: credentials.username || "",
     severity: "MEDIUM",
     latitude: "",
     longitude: "",
-    rainfallDeficitMm: "",
-    consecutiveDryDays: "",
-    cropFailurePercentage: "",
-    peopleFacingWaterShortages: "",
-    livestockMortalityCount: ""
+    diseaseName: "",
+    animalSpecies: "",
+    confirmedHumanCases: "",
+    confirmedAnimalCases: "",
+    eventClassification: "CLUSTER"
   };
 
   const [form, setForm] = useState(emptyForm);
@@ -36,12 +37,12 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
     setError("");
 
     try {
-      const response = await fetch(`${API_URL}/api/drought/incidents`, {
+      const response = await fetch(`${API_URL}/api/zoonotic-incidents`, {
         headers: { Authorization: `Bearer ${credentials.auth}` }
       });
 
       if (!response.ok) {
-        setError("Could not load drought incidents.");
+        setError("Could not load zoonotic disease incidents.");
         setLoading(false);
         return;
       }
@@ -74,20 +75,16 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
 
     const payload = {
       ...form,
-      reporter: credentials.username,
       latitude: form.latitude === "" ? null : Number(form.latitude),
       longitude: form.longitude === "" ? null : Number(form.longitude),
-      rainfallDeficitMm: form.rainfallDeficitMm === "" ? null : Number(form.rainfallDeficitMm),
-      consecutiveDryDays: form.consecutiveDryDays === "" ? null : Number(form.consecutiveDryDays),
-      cropFailurePercentage: form.cropFailurePercentage === "" ? null : Number(form.cropFailurePercentage),
-      peopleFacingWaterShortages: form.peopleFacingWaterShortages === "" ? null : Number(form.peopleFacingWaterShortages),
-      livestockMortalityCount: form.livestockMortalityCount === "" ? null : Number(form.livestockMortalityCount)
+      confirmedHumanCases: form.confirmedHumanCases === "" ? 0 : Number(form.confirmedHumanCases),
+      confirmedAnimalCases: form.confirmedAnimalCases === "" ? 0 : Number(form.confirmedAnimalCases)
     };
 
     try {
       const url = editingId
-        ? `${API_URL}/api/drought/incidents/${editingId}`
-        : `${API_URL}/api/drought/incidents`;
+        ? `${API_URL}/api/zoonotic-incidents/${editingId}`
+        : `${API_URL}/api/zoonotic-incidents`;
 
       const response = await fetch(url, {
         method: editingId ? "PUT" : "POST",
@@ -100,7 +97,7 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        setError(body.error || "Could not save the incident.");
+        setError(body.error || body.message || "Could not save the incident.");
         return;
       }
 
@@ -118,15 +115,16 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
       ward: incident.ward || "",
       district: incident.district || "",
       province: incident.province || "",
-      dateTimeOfOccurrence: incident.dateTimeOfOccurrence || "",
+      occurrenceDateTime: incident.occurrenceDateTime || "",
+      reporter: incident.reporter || "",
       severity: incident.severity || "MEDIUM",
       latitude: incident.latitude ?? "",
       longitude: incident.longitude ?? "",
-      rainfallDeficitMm: incident.rainfallDeficitMm ?? "",
-      consecutiveDryDays: incident.consecutiveDryDays ?? "",
-      cropFailurePercentage: incident.cropFailurePercentage ?? "",
-      peopleFacingWaterShortages: incident.peopleFacingWaterShortages ?? "",
-      livestockMortalityCount: incident.livestockMortalityCount ?? ""
+      diseaseName: incident.diseaseName || "",
+      animalSpecies: incident.animalSpecies || "",
+      confirmedHumanCases: incident.confirmedHumanCases ?? "",
+      confirmedAnimalCases: incident.confirmedAnimalCases ?? "",
+      eventClassification: incident.eventClassification || "CLUSTER"
     });
     setEditingId(incident.id);
     setShowForm(true);
@@ -136,14 +134,14 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
     if (!window.confirm("Delete this incident?")) return;
 
     try {
-      const response = await fetch(`${API_URL}/api/drought/incidents/${id}`, {
+      const response = await fetch(`${API_URL}/api/zoonotic-incidents/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${credentials.auth}` }
       });
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        setError(body.error || "Could not delete the incident.");
+        setError(body.error || body.message || "Could not delete the incident.");
         return;
       }
 
@@ -156,29 +154,15 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
   };
 
   const doAction = async (id, action) => {
-    let url = `${API_URL}/api/drought/incidents/${id}/${action}?performedBy=${encodeURIComponent(credentials.username)}`;
-
-    if (action === "reject") {
-      const reason = window.prompt("Reason for rejection:");
-      if (!reason) return;
-      url += `&reason=${encodeURIComponent(reason)}`;
-    }
-
-    if (action === "request-correction") {
-      const notes = window.prompt("What needs to be corrected?");
-      if (!notes) return;
-      url += `&notes=${encodeURIComponent(notes)}`;
-    }
-
     try {
-      const response = await fetch(url, {
-        method: "PATCH",
+      const response = await fetch(`${API_URL}/api/zoonotic-incidents/${id}/${action}`, {
+        method: "POST",
         headers: { Authorization: `Bearer ${credentials.auth}` }
       });
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        setError(body.error || "Action failed.");
+        setError(body.error || body.message || "Action failed.");
         return;
       }
 
@@ -209,7 +193,7 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
     <div style={{ minHeight: "100vh", background: "#f3f4f6" }}>
       <div
         style={{
-          background: "#d97706",
+          background: "#7c3aed",
           color: "white",
           padding: "20px 32px",
           display: "flex",
@@ -219,19 +203,19 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
       >
         <div>
           <h1 style={{ margin: 0, fontSize: "24px" }}>DPDMS</h1>
-          <p style={{ margin: 0, opacity: 0.85 }}>Drought Monitoring & Management</p>
+          <p style={{ margin: 0, opacity: 0.85 }}>Zoonotic Disease Management</p>
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontWeight: "bold" }}>{credentials.username}</div>
           <div style={{ opacity: 0.85, fontSize: "14px" }}>{credentials.role}</div>
-                   {onBack && (
+          {onBack && (
             <button
               onClick={onBack}
               style={{
                 marginTop: "8px",
                 marginRight: "8px",
                 background: "white",
-                color: "#d97706",
+                color: "#7c3aed",
                 border: "none",
                 borderRadius: "6px",
                 padding: "6px 16px",
@@ -241,12 +225,13 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
             >
               ← Back to Dashboard
             </button>
-          )} <button
+          )}
+          <button
             onClick={onLogout}
             style={{
               marginTop: "8px",
               background: "white",
-              color: "#d97706",
+              color: "#7c3aed",
               border: "none",
               borderRadius: "6px",
               padding: "6px 16px",
@@ -260,7 +245,7 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
       </div>
 
       <div style={{ padding: "32px", maxWidth: "1100px", margin: "0 auto" }}>
-        <h2 style={{ textAlign: "center" }}>Drought Dashboard</h2>
+        <h2 style={{ textAlign: "center" }}>Zoonotic Disease Dashboard</h2>
 
         {error && (
           <p style={{ textAlign: "center", color: "#dc2626", background: "#fee2e2", padding: "10px", borderRadius: "8px" }}>
@@ -309,7 +294,7 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
             <button
               onClick={() => (showForm ? resetForm() : setShowForm(true))}
               style={{
-                background: "#d97706",
+                background: "#7c3aed",
                 color: "white",
                 border: "none",
                 borderRadius: "6px",
@@ -318,7 +303,7 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
                 fontWeight: "bold"
               }}
             >
-              {showForm ? "Cancel" : "+ Report Drought Incident"}
+              {showForm ? "Cancel" : "+ Report Zoonotic Disease Incident"}
             </button>
           </div>
         )}
@@ -334,7 +319,7 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
               boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
             }}
           >
-            <h3>{editingId ? "Edit Incident" : "New Drought Incident"}</h3>
+            <h3>{editingId ? "Edit Incident" : "New Zoonotic Disease Incident"}</h3>
 
             <label style={labelStyle}>Ward</label>
             <input style={inputStyle} name="ward" value={form.ward} onChange={handleChange} required />
@@ -345,8 +330,11 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
             <label style={labelStyle}>Province</label>
             <input style={inputStyle} name="province" value={form.province} onChange={handleChange} required />
 
-            <label style={labelStyle}>Date/Time of Occurrence</label>
-            <input style={inputStyle} type="datetime-local" name="dateTimeOfOccurrence" value={form.dateTimeOfOccurrence} onChange={handleChange} required />
+            <label style={labelStyle}>Occurrence Date/Time</label>
+            <input style={inputStyle} type="datetime-local" name="occurrenceDateTime" value={form.occurrenceDateTime} onChange={handleChange} required />
+
+            <label style={labelStyle}>Reporter</label>
+            <input style={inputStyle} name="reporter" value={form.reporter} onChange={handleChange} required />
 
             <label style={labelStyle}>Severity</label>
             <select style={inputStyle} name="severity" value={form.severity} onChange={handleChange}>
@@ -362,25 +350,28 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
             <label style={labelStyle}>Longitude</label>
             <input style={inputStyle} type="number" step="any" name="longitude" value={form.longitude} onChange={handleChange} />
 
-            <label style={labelStyle}>Rainfall Deficit (mm)</label>
-            <input style={inputStyle} type="number" step="any" name="rainfallDeficitMm" value={form.rainfallDeficitMm} onChange={handleChange} />
+            <label style={labelStyle}>Disease / Pathogen Name</label>
+            <input style={inputStyle} name="diseaseName" value={form.diseaseName} onChange={handleChange} required />
 
-            <label style={labelStyle}>Consecutive Dry Days</label>
-            <input style={inputStyle} type="number" name="consecutiveDryDays" value={form.consecutiveDryDays} onChange={handleChange} />
+            <label style={labelStyle}>Animal Species Affected</label>
+            <input style={inputStyle} name="animalSpecies" value={form.animalSpecies} onChange={handleChange} required />
 
-            <label style={labelStyle}>Crop Failure (%)</label>
-            <input style={inputStyle} type="number" step="any" name="cropFailurePercentage" value={form.cropFailurePercentage} onChange={handleChange} />
+            <label style={labelStyle}>Confirmed Human Cases</label>
+            <input style={inputStyle} type="number" name="confirmedHumanCases" value={form.confirmedHumanCases} onChange={handleChange} />
 
-            <label style={labelStyle}>People Facing Water Shortages</label>
-            <input style={inputStyle} type="number" name="peopleFacingWaterShortages" value={form.peopleFacingWaterShortages} onChange={handleChange} />
+            <label style={labelStyle}>Confirmed Animal Cases</label>
+            <input style={inputStyle} type="number" name="confirmedAnimalCases" value={form.confirmedAnimalCases} onChange={handleChange} />
 
-            <label style={labelStyle}>Livestock Mortality Count</label>
-            <input style={inputStyle} type="number" name="livestockMortalityCount" value={form.livestockMortalityCount} onChange={handleChange} />
+            <label style={labelStyle}>Event Classification</label>
+            <select style={inputStyle} name="eventClassification" value={form.eventClassification} onChange={handleChange}>
+              <option value="CLUSTER">CLUSTER</option>
+              <option value="OUTBREAK">OUTBREAK</option>
+            </select>
 
             <button
               type="submit"
               style={{
-                background: "#d97706",
+                background: "#7c3aed",
                 color: "white",
                 border: "none",
                 borderRadius: "6px",
@@ -403,7 +394,7 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
             boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
           }}
         >
-          <h3>Drought Incidents</h3>
+          <h3>Zoonotic Disease Incidents</h3>
 
           {loading && <p>Loading...</p>}
 
@@ -416,7 +407,7 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
               <thead>
                 <tr style={{ borderBottom: "2px solid #e5e7eb" }}>
                   <th style={{ textAlign: "left", padding: "8px" }}>Ward</th>
-                  <th style={{ textAlign: "left", padding: "8px" }}>District</th>
+                  <th style={{ textAlign: "left", padding: "8px" }}>Disease</th>
                   <th style={{ textAlign: "left", padding: "8px" }}>Severity</th>
                   <th style={{ textAlign: "left", padding: "8px" }}>Status</th>
                   <th style={{ textAlign: "left", padding: "8px" }}>Reporter</th>
@@ -427,14 +418,14 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
                 {incidents.map((incident) => (
                   <tr key={incident.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                     <td style={{ padding: "8px" }}>{incident.ward}</td>
-                    <td style={{ padding: "8px" }}>{incident.district}</td>
+                    <td style={{ padding: "8px" }}>{incident.diseaseName}</td>
                     <td style={{ padding: "8px" }}>{incident.severity}</td>
                     <td style={{ padding: "8px" }}>{incident.status}</td>
                     <td style={{ padding: "8px" }}>{incident.reporter}</td>
                     <td style={{ padding: "8px" }}>
                       {credentials.role === "RECORDER" &&
                         incident.status === "PENDING" &&
-                        incident.reporter === credentials.username && (
+                        incident.createdByUsername === credentials.username && (
                           <>
                             <button onClick={() => startEdit(incident)} style={{ marginRight: "6px" }}>
                               Edit
@@ -468,4 +459,4 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
   );
 }
 
-export default DroughtPanel;
+export default ZoonoticPanel;
