@@ -114,7 +114,7 @@ Or run the files in [`database/`](database/) in order with any MySQL client. Use
 
 ### 3. Start everything
 
-**Windows, one command:**
+**Windows, double-click:** `start-dpdms.bat` in the project folder (and `stop-dpdms.bat` to stop). Or with one command:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1
