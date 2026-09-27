@@ -1,0 +1,18 @@
+HTTP/1.1 200 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Content-Disposition: attachment; filename="Drought_Test_Report.csv"
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Content-Type: text/csv
+Content-Length: 68
+Date: Sun, 27 Sep 2026 09:17:38 GMT
+
+Ward,District,Severity
+Ward 1,Rushinga,HIGH
+Ward 2,Mt Darwin,MEDIUM
