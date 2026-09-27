@@ -57,6 +57,10 @@ CREATE TABLE IF NOT EXISTS users (
     UNIQUE KEY uk_zoonotic_users_username (username)
 );
 
+-- Databases created by an older version of this service stored "role" as a MySQL
+-- ENUM of the original three roles, which rejects PROVINCIAL_ADMIN. Widen it.
+ALTER TABLE users MODIFY role VARCHAR(40) NOT NULL;
+
 INSERT IGNORE INTO zoonotic_incidents (id, ward, district, province, occurrence_date_time, reporter, severity, status,
     latitude, longitude, disease_name, animal_species, confirmed_human_cases, confirmed_animal_cases,
     event_classification, created_by_username) VALUES
