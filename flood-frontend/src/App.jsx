@@ -3,6 +3,7 @@ import "./App.css";
 import NationalDashboard from "./NationalDashboard";
 import DroughtPanel from "./DroughtPanel";
 import FirePanel from "./FirePanel";
+import MiningPanel from "./MiningPanel";
 
 
 import {
@@ -549,6 +550,12 @@ function App() {
    if (credentials.hazardScope === "FIRE") {
     return (
       <FirePanel credentials={credentials} onLogout={logout} />
+    );
+  }
+
+  if (credentials.hazardScope === "MINING") {
+    return (
+      <MiningPanel credentials={credentials} onLogout={logout} />
     );
   }
 
