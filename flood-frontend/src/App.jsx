@@ -1,6 +1,8 @@
 import { useState } from "react";
 import "./App.css";
 import NationalDashboard from "./NationalDashboard";
+import DroughtPanel from "./DroughtPanel";
+
 
 import {
   MapContainer,
@@ -538,6 +540,11 @@ function App() {
   }
 
 
+  if (credentials.hazardScope === "DROUGHT") {
+    return (
+      <DroughtPanel credentials={credentials} onLogout={logout} />
+    );
+  }
   // DASHBOARD
   // --------------------------------------------------
 
