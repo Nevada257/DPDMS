@@ -22,6 +22,7 @@ jobs:
           - mining-accident-service
           - alert-service
           - dashboard-service
+          - report-service
     services:
       mysql:
         image: mysql:8
@@ -52,7 +53,7 @@ jobs:
         working-directory: ${{ matrix.module }}
         run: |
           set -o pipefail
-          mvn -B -ntp verify -Deureka.client.enabled=false 2>&1 | tee build.log
+          mvn -B -ntp verify -Deureka.client.enabled=false -Dsurefire.trimStackTrace=false 2>&1 | tee build.log
       - name: Report errors as annotations
         if: failure()
         working-directory: ${{ matrix.module }}
@@ -66,7 +67,7 @@ jobs:
             grep -q "FAILURE\|ERROR" "$f" || continue
             echo "::error title=$(basename $f)::$(grep -m3 -E 'Exception|Error|expected' "$f" | tr '\n' ' ' | cut -c1-900)"
           done
-          grep -h -m5 "Caused by" target/surefire-reports/*.txt 2>/dev/null | sort -u | head -5 \
+          grep -h "Caused by" target/surefire-reports/*.txt target/surefire-reports/*.xml build.log 2>/dev/null | sort -u | head -8 \
             | while IFS= read -r line; do echo "::error title=cause::${line:0:900}"; done
           exit 0
 

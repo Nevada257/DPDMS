@@ -7,17 +7,18 @@ import io.jsonwebtoken.security.Keys;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class JwtService {
 
-    private static final String SECRET =
-            "DPDMS-SECRET-KEY-FOR-JWT-AUTHENTICATION-2026-SECURE";
+    private final SecretKey key;
 
-    private final SecretKey key = Keys.hmacShaKeyFor(
-            SECRET.getBytes(StandardCharsets.UTF_8)
-    );
+    // Shared signing secret, supplied through the JWT_SECRET environment variable.
+    public JwtService(@Value("${jwt.secret}") String secret) {
+        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    }
 
     public Claims extractAllClaims(String token) {
 
@@ -37,6 +38,12 @@ public class JwtService {
 
         return extractAllClaims(token)
                 .get("role", String.class);
+    }
+
+    public String extractHazardScope(String token) {
+
+        return extractAllClaims(token)
+                .get("hazardScope", String.class);
     }
 
     public boolean isValid(String token) {

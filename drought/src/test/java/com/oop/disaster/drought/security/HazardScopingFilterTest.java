@@ -27,8 +27,8 @@ class HazardScopingFilterTest {
 
     static String token(String user, String role, String scope, String ward) {
         return Jwts.builder()
-                .subject(user).claim("role", role).claim("hazardScope", scope).claim("ward", ward)
-                .issuedAt(new Date()).expiration(new Date(System.currentTimeMillis() + 60_000))
+                .setSubject(user).claim("role", role).claim("hazardScope", scope).claim("ward", ward)
+                .setIssuedAt(new Date()).setExpiration(new Date(System.currentTimeMillis() + 60_000))
                 .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
                 .compact();
     }

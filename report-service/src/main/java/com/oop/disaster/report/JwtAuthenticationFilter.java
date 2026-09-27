@@ -43,6 +43,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             String username = jwtService.extractUsername(token);
             String role = jwtService.extractRole(token);
+            String hazardScope = jwtService.extractHazardScope(token);
+
+            // Same scoping rule as the hazard services: a token must name one
+            // hazard, or be a cross-hazard (ALL) token of a NATIONAL / ADMIN user.
+            boolean scopeAllowed = hazardScope != null && role != null
+                    && (!"ALL".equalsIgnoreCase(hazardScope)
+                        || "NATIONAL".equalsIgnoreCase(role) || "ADMIN".equalsIgnoreCase(role));
+
+            if (!scopeAllowed) {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\":\"Forbidden: token has no valid hazard scope\"}");
+                return;
+            }
 
             SimpleGrantedAuthority authority =
                     new SimpleGrantedAuthority("ROLE_" + role);
