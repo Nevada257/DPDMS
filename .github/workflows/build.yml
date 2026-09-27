@@ -50,7 +50,25 @@ jobs:
           done
       - name: Build and test
         working-directory: ${{ matrix.module }}
-        run: mvn -B -ntp verify -Deureka.client.enabled=false
+        run: |
+          set -o pipefail
+          mvn -B -ntp verify -Deureka.client.enabled=false 2>&1 | tee build.log
+      - name: Report errors as annotations
+        if: failure()
+        working-directory: ${{ matrix.module }}
+        run: |
+          # Compiler / Maven errors
+          grep -E "^\[ERROR\]" build.log | grep -v "^\[ERROR\] *$\|Re-run Maven\|Help 1\|full stack trace\|-> \[Help" \
+            | head -15 | while IFS= read -r line; do echo "::error title=maven::${line:0:900}"; done
+          # First cause of each failed test
+          for f in target/surefire-reports/*.txt; do
+            [ -f "$f" ] || continue
+            grep -q "FAILURE\|ERROR" "$f" || continue
+            echo "::error title=$(basename $f)::$(grep -m3 -E 'Exception|Error|expected' "$f" | tr '\n' ' ' | cut -c1-900)"
+          done
+          grep -h -m5 "Caused by" target/surefire-reports/*.txt 2>/dev/null | sort -u | head -5 \
+            | while IFS= read -r line; do echo "::error title=cause::${line:0:900}"; done
+          exit 0
 
   frontend:
     runs-on: ubuntu-latest
