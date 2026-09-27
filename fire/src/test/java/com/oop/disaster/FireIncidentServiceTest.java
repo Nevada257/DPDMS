@@ -11,6 +11,7 @@ import org.mockito.Mockito;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class FireIncidentServiceTest {
 
@@ -46,5 +47,33 @@ class FireIncidentServiceTest {
                 1L, IncidentStatus.APPROVED, "Approved", "supervisor");
 
         assertEquals(IncidentStatus.APPROVED, result.getStatus());
+    }
+
+    @Test
+    void onlyPendingIncidentsCanBeApproved() {
+        FireIncidentRepository repository = Mockito.mock(FireIncidentRepository.class);
+        AuditLogRepository audit = Mockito.mock(AuditLogRepository.class);
+
+        FireIncident incident = new FireIncident();
+        incident.setStatus(IncidentStatus.APPROVED);
+        Mockito.when(repository.findById(1L)).thenReturn(Optional.of(incident));
+
+        FireIncidentService service = new FireIncidentService(repository, audit);
+        assertThrows(IllegalStateException.class,
+                () -> service.changeStatus(1L, IncidentStatus.APPROVED, "Approved", "fire_supervisor"));
+    }
+
+    @Test
+    void rejectionNeedsAReason() {
+        FireIncidentRepository repository = Mockito.mock(FireIncidentRepository.class);
+        AuditLogRepository audit = Mockito.mock(AuditLogRepository.class);
+
+        FireIncident incident = new FireIncident();
+        incident.setStatus(IncidentStatus.PENDING);
+        Mockito.when(repository.findById(1L)).thenReturn(Optional.of(incident));
+
+        FireIncidentService service = new FireIncidentService(repository, audit);
+        assertThrows(IllegalArgumentException.class,
+                () -> service.changeStatus(1L, IncidentStatus.REJECTED, "  ", "fire_supervisor"));
     }
 }
