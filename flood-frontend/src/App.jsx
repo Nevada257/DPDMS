@@ -422,7 +422,7 @@ function App() {
           </div>
 
           <h1>
-            Flood Management
+            Rushinga Provincial DPDMS
           </h1>
 
           <p className="subtitle">
@@ -477,9 +477,9 @@ function App() {
           </form>
 
           <div className="login-info">
-            <p>Flood Service</p>
+            <p>Floods · Droughts · Fires · Zoonotic Diseases · Mining Accidents</p>
             <span>
-              Secure Role-Based Access
+              Secure role-based access — sign in with your ward, provincial or national account
             </span>
           </div>
 
