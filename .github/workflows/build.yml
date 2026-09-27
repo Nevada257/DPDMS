@@ -1,0 +1,93 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    name: ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - discovery-service
+          - auth-service
+          - dpdms-api-gateway
+          - flood
+          - drought
+          - fire
+          - zoonotic-disease-service
+          - mining-accident-service
+          - alert-service
+          - dashboard-service
+          - report-service
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: ci-password
+        ports: ["3306:3306"]
+        options: --health-cmd="mysqladmin ping -pci-password" --health-interval=5s --health-retries=20
+    env:
+      DB_PASSWORD: ci-password
+      JWT_SECRET: ci-only-secret-key-for-dpdms-tests-0123456789
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Create databases used by integration tests
+        run: |
+          for i in $(seq 1 60); do
+            mysqladmin -h127.0.0.1 -uroot -pci-password ping --silent && break
+            sleep 2
+          done
+          for db in auth_db flood_db drought_db fire_db zoonotic_db mining_accident_db alert_db; do
+            mysql -h127.0.0.1 -uroot -pci-password -e "CREATE DATABASE IF NOT EXISTS $db"
+          done
+      - name: Build and test
+        working-directory: ${{ matrix.module }}
+        run: |
+          set -o pipefail
+          # Services skip Eureka registration in tests; the Eureka server itself needs its client beans
+          EXTRA="-Deureka.client.enabled=false"
+          [ "${{ matrix.module }}" = "discovery-service" ] && EXTRA=""
+          mvn -B -ntp verify $EXTRA -Dsurefire.trimStackTrace=false 2>&1 | tee build.log
+      - name: Report errors as annotations
+        if: failure()
+        working-directory: ${{ matrix.module }}
+        run: |
+          # Compiler / Maven errors
+          grep -E "^\[ERROR\]" build.log | grep -v "^\[ERROR\] *$\|Re-run Maven\|Help 1\|full stack trace\|-> \[Help" \
+            | head -15 | while IFS= read -r line; do echo "::error title=maven::${line:0:900}"; done
+          # First cause of each failed test
+          for f in target/surefire-reports/*.txt; do
+            [ -f "$f" ] || continue
+            grep -q "FAILURE\|ERROR" "$f" || continue
+            echo "::error title=$(basename $f)::$(grep -m3 -E 'Exception|Error|expected' "$f" | tr '\n' ' ' | cut -c1-900)"
+          done
+          grep -h "Caused by" target/surefire-reports/*.txt target/surefire-reports/*.xml build.log 2>/dev/null | sort -u | head -8 \
+            | while IFS= read -r line; do echo "::error title=cause::${line:0:900}"; done
+          # Spring Boot's start-up failure explanation and bean-creation errors
+          for f in build.log target/surefire-reports/*; do
+            [ -f "$f" ] || continue
+            grep -A14 "APPLICATION FAILED TO START" "$f" | tr '\n' ' ' | cut -c1-1500 \
+              | while IFS= read -r line; do [ -n "$line" ] && echo "::error title=startup::${line}"; done
+            grep -o "Error creating bean[^\"]*" "$f" | head -3 | cut -c1-900 \
+              | while IFS= read -r line; do echo "::error title=bean::${line}"; done
+          done
+          exit 0
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+      - working-directory: flood-frontend
+        run: npm ci && npm run build

@@ -49,6 +49,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String username = jwtService.extractUsername(token);
 
+            // HAZARD-LEVEL SCOPING: a token must be issued for ZOONOTIC,
+            // or be a cross-hazard (ALL) token held by a NATIONAL or ADMIN user.
+            // Tokens without a hazardScope claim are rejected.
+            String hazardScope = jwtService.extractHazardScope(token);
+            String role = jwtService.extractRole(token);
+            boolean scopeAllowed = "ZOONOTIC".equalsIgnoreCase(hazardScope)
+                    || ("ALL".equalsIgnoreCase(hazardScope)
+                        && ("NATIONAL".equalsIgnoreCase(role) || "ADMIN".equalsIgnoreCase(role)));
+
+            if (!scopeAllowed) {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\":\"Forbidden: token not valid for zoonotic disease service\"}");
+                return;
+            }
+
             if (username != null &&
                     SecurityContextHolder.getContext().getAuthentication() == null) {
 

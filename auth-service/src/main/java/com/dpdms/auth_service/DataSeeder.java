@@ -5,40 +5,57 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+/**
+ * Seeds one recorder and one provincial supervisor per hazard, a provincial
+ * administrator and a national user. Each account is created only if its
+ * username does not exist yet, so new accounts are added to an existing database.
+ *
+ * Roles:
+ *   RECORDER   - ward-level data capturer, scoped to exactly one (ward, hazard)
+ *   SUPERVISOR - provincial supervisor, approves one hazard only
+ *   ADMIN      - provincial administrator, may view pending records (read only)
+ *   NATIONAL   - read-only, approved records across all hazards
+ */
 @Configuration
 public class DataSeeder {
+
+    private static final String DEFAULT_PASSWORD = "password123";
 
     @Bean
     CommandLineRunner seedUsers(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         return args -> {
-            if (userRepository.count() > 0) {
-                System.out.println(">>> Users already exist. Skipping seed.");
-                return;
+            String[] hazards = {"FLOOD", "DROUGHT", "FIRE", "ZOONOTIC", "MINING"};
+            int created = 0;
+
+            for (String hazard : hazards) {
+                String prefix = hazard.toLowerCase();
+                created += createIfMissing(userRepository, passwordEncoder,
+                        prefix + "_recorder", "RECORDER", hazard, "Ward 1");
+                created += createIfMissing(userRepository, passwordEncoder,
+                        prefix + "_supervisor", "SUPERVISOR", hazard, null);
             }
 
-            createUser(userRepository, passwordEncoder, "flood_recorder", "password123", "RECORDER", "FLOOD", "Ward 1");
-            createUser(userRepository, passwordEncoder, "flood_supervisor", "password123", "SUPERVISOR", "FLOOD", null);
+            // Second-ward recorder, used to demonstrate ward-level scoping
+            created += createIfMissing(userRepository, passwordEncoder,
+                    "flood_recorder_w2", "RECORDER", "FLOOD", "Ward 2");
 
-            createUser(userRepository, passwordEncoder, "drought_recorder", "password123", "RECORDER", "DROUGHT", "Ward 1");
-            createUser(userRepository, passwordEncoder, "drought_supervisor", "password123", "SUPERVISOR", "DROUGHT", null);
+            created += createIfMissing(userRepository, passwordEncoder,
+                    "provincial_admin", "ADMIN", "ALL", null);
+            created += createIfMissing(userRepository, passwordEncoder,
+                    "national_user", "NATIONAL", "ALL", null);
 
-            createUser(userRepository, passwordEncoder, "fire_recorder", "password123", "RECORDER", "FIRE", "Ward 1");
-            createUser(userRepository, passwordEncoder, "fire_supervisor", "password123", "SUPERVISOR", "FIRE", null);
-
-            createUser(userRepository, passwordEncoder, "mining_recorder", "password123", "RECORDER", "MINING", "Ward 1");
-            createUser(userRepository, passwordEncoder, "mining_supervisor", "password123", "SUPERVISOR", "MINING", null);
-
-            createUser(userRepository, passwordEncoder, "national_user", "password123", "NATIONAL", "ALL", null);
-
-            System.out.println(">>> Seeded 9 test user accounts.");
+            System.out.println(">>> Seeded " + created + " new user account(s).");
         };
     }
 
-    private void createUser(UserRepository repo, PasswordEncoder encoder,
-                             String username, String rawPassword, String role,
-                             String hazardScope, String ward) {
+    private int createIfMissing(UserRepository repo, PasswordEncoder encoder,
+                                String username, String role,
+                                String hazardScope, String ward) {
 
-        User user = new User(username, encoder.encode(rawPassword), role, hazardScope, ward);
-        repo.save(user);
+        if (repo.findByUsername(username) != null) {
+            return 0;
+        }
+        repo.save(new User(username, encoder.encode(DEFAULT_PASSWORD), role, hazardScope, ward));
+        return 1;
     }
 }

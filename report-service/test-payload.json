@@ -1,9 +1,0 @@
-{
-  "title": "Drought Test Report",
-  "format": "PDF",
-  "columns": ["Ward", "District", "Severity"],
-  "rows": [
-    { "Ward": "Ward 1", "District": "Rushinga", "Severity": "HIGH" },
-    { "Ward": "Ward 2", "District": "Mt Darwin", "Severity": "MEDIUM" }
-  ]
-}

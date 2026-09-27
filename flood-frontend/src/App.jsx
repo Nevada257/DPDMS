@@ -44,6 +44,10 @@ function App() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Hazard-scoped users can open the dashboard (limited to their own hazard)
+  const [showDashboard, setShowDashboard] = useState(false);
+  // National / admin users opening the flood screen from their dashboard
+  const [floodDrill, setFloodDrill] = useState(false);
 
   const [form, setForm] = useState({
     ward: "",
@@ -391,6 +395,8 @@ function App() {
   // --------------------------------------------------
 
   const logout = () => {
+    setShowDashboard(false);
+    setFloodDrill(false);
     setCredentials(null);
     setIncidents([]);
 
@@ -419,7 +425,7 @@ function App() {
           </div>
 
           <h1>
-            Flood Management
+            Rushinga Provincial DPDMS
           </h1>
 
           <p className="subtitle">
@@ -474,9 +480,9 @@ function App() {
           </form>
 
           <div className="login-info">
-            <p>Flood Service</p>
+            <p>Floods · Droughts · Fires · Zoonotic Diseases · Mining Accidents</p>
             <span>
-              Secure Role-Based Access
+              Secure role-based access — sign in with your ward, provincial or national account
             </span>
           </div>
 
@@ -535,34 +541,84 @@ function App() {
     );
 
   // --------------------------------------------------
-  // NATIONAL USERS GET A CROSS-HAZARD DASHBOARD INSTEAD
-  if (credentials.hazardScope === "ALL") {
+  // NATIONAL USERS AND THE PROVINCIAL ADMIN GET THE CROSS-HAZARD DASHBOARD
+  if (credentials.hazardScope === "ALL" && !floodDrill) {
     return (
-      <NationalDashboard credentials={credentials} onLogout={logout} />
+      <NationalDashboard
+        credentials={credentials}
+        onLogout={logout}
+        onOpenFlood={() => {
+          setFloodDrill(true);
+          loadIncidents(credentials.auth);
+        }}
+      />
     );
   }
 
+  // Everyone else can switch to a dashboard for their own hazard
+  if (showDashboard) {
+    return (
+      <NationalDashboard
+        credentials={credentials}
+        onLogout={logout}
+        onBack={() => setShowDashboard(false)}
+      />
+    );
+  }
+
+  const dashboardButton = (
+    <button
+      onClick={() =>
+        credentials.hazardScope === "ALL"
+          ? setFloodDrill(false)
+          : setShowDashboard(true)
+      }
+      style={{
+        position: "fixed", right: "24px", bottom: "24px", zIndex: 1000,
+        background: "#0f766e", color: "white", border: "none", borderRadius: "24px",
+        padding: "12px 20px", fontWeight: "bold", cursor: "pointer",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.25)"
+      }}
+    >
+      {credentials.hazardScope === "ALL"
+        ? "← Back to national dashboard"
+        : "Dashboard, map & reports"}
+    </button>
+  );
 
   if (credentials.hazardScope === "DROUGHT") {
     return (
-      <DroughtPanel credentials={credentials} onLogout={logout} />
+      <>
+        <DroughtPanel credentials={credentials} onLogout={logout} />
+        {dashboardButton}
+      </>
     );
   }
-   if (credentials.hazardScope === "FIRE") {
+
+  if (credentials.hazardScope === "FIRE") {
     return (
-      <FirePanel credentials={credentials} onLogout={logout} />
+      <>
+        <FirePanel credentials={credentials} onLogout={logout} />
+        {dashboardButton}
+      </>
     );
   }
 
   if (credentials.hazardScope === "MINING") {
     return (
-      <MiningPanel credentials={credentials} onLogout={logout} />
+      <>
+        <MiningPanel credentials={credentials} onLogout={logout} />
+        {dashboardButton}
+      </>
     );
   }
 
   if (credentials.hazardScope === "ZOONOTIC") {
     return (
-      <ZoonoticPanel credentials={credentials} onLogout={logout} />
+      <>
+        <ZoonoticPanel credentials={credentials} onLogout={logout} />
+        {dashboardButton}
+      </>
     );
   }
 
@@ -571,6 +627,7 @@ function App() {
 
   return (
     <div className="dashboard">
+      {dashboardButton}
 
       {/* TOP BAR */}
       <header className="topbar">

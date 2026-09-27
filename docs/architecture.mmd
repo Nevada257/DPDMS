@@ -1,0 +1,40 @@
+flowchart TB
+    UI["React front end (Vite + Leaflet) :5173<br/>role-aware UI, dashboard, map, reports"]
+    UI == "HTTPS · JSON · Bearer JWT" ==> GW["API Gateway — Spring Cloud Gateway :8080<br/>single entry point, routes lb://service-name"]
+
+    subgraph Platform["Platform"]
+        direction LR
+        EUR["Eureka discovery :8761"]
+        AUTH["auth-service :8086<br/>login · BCrypt · signs JWT<br/>(role, hazardScope, ward)"] --- DBA[("auth_db")]
+    end
+
+    subgraph Hazards["Hazard services — independent, own schema, own REST API, enforce RBAC + hazard scoping"]
+        direction LR
+        FL["flood-service<br/>:8081"] --- DBF[("flood_db")]
+        DR["drought-service<br/>:8082"] --- DBD[("drought_db")]
+        FI["fire-service<br/>:8083"] --- DBI[("fire_db")]
+        ZO["zoonotic-disease-service<br/>:8084"] --- DBZ[("zoonotic_db")]
+        MI["mining-accident-service<br/>:8085"] --- DBM[("mining_accident_db")]
+    end
+
+    subgraph Shared["Shared capability services"]
+        direction LR
+        DASH["dashboard-service :8089<br/>aggregates APPROVED incidents<br/>counts · trends · map points"]
+        REP["report-service :8087<br/>PDF · DOCX · XLSX · CSV"]
+        ALR["alert-service :8088<br/>alert rules · async dispatch<br/>delivery log"] --- DBL[("alert_db")]
+    end
+
+    GW --> AUTH
+    GW --> Hazards
+    GW --> Shared
+
+    Hazards -. "async REST, fire-and-forget<br/>incident + key indicators" .-> ALR
+    DASH -- "REST with caller's JWT<br/>(scoping applied by each service)" --> Hazards
+    REP -. "filtered approved data" .-> DASH
+
+    ALR --> MAIL(["Email — SMTP / JavaMail"])
+    ALR --> WA(["WhatsApp Business Cloud API"])
+
+    Hazards -. "register / discover" .-> EUR
+    Shared -. "register / discover" .-> EUR
+    GW -. discover .-> EUR

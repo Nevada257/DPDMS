@@ -73,6 +73,21 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**")
                         .permitAll()
 
+                        .requestMatchers(
+                                "/actuator/health",
+                                "/actuator/info",
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**"
+                        )
+                        .permitAll()
+
+                        // Reports are read-only; every signed-in role may generate them.
+                        // What data a report contains is limited by the caller's scope
+                        // (see IncidentReportController).
+                        .requestMatchers("/api/reports/**")
+                        .hasAnyRole("RECORDER", "SUPERVISOR", "ADMIN", "NATIONAL")
+
                         .anyRequest()
                         .authenticated()
                 )

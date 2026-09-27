@@ -47,9 +47,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 String hazardScope = jwtService.extractHazardScope(token);
 
                 // ---- HAZARD-LEVEL SCOPING: block tokens not meant for this service ----
-                if (hazardScope != null
-                        && !hazardScope.equalsIgnoreCase("DROUGHT")
-                        && !hazardScope.equalsIgnoreCase("ALL")) {
+                // A token with no hazardScope claim is rejected too.
+                // Only ADMIN and NATIONAL users carry the cross-hazard scope "ALL".
+                boolean scopeAllowed = "DROUGHT".equalsIgnoreCase(hazardScope)
+                        || ("ALL".equalsIgnoreCase(hazardScope)
+                            && ("NATIONAL".equalsIgnoreCase(role) || "ADMIN".equalsIgnoreCase(role)));
+
+                if (!scopeAllowed) {
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                     response.getWriter().write("{\"error\":\"Forbidden: token not valid for drought service\"}");
                     return;

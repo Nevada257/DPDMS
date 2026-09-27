@@ -33,91 +33,177 @@ public class ReportGeneratorService {
 
     // ---------- PDF ----------
 
+    private static final float PDF_MARGIN = 36;
+    private static final float PDF_FONT_SIZE = 8;
+    private static final float PDF_ROW_HEIGHT = 16;
+    private static final float PDF_CELL_PADDING = 4;
+
+    /**
+     * Landscape A4 table: title and generation time on the first page, a
+     * header row repeated on every page, column widths sized to the content,
+     * long values shortened with "..." so nothing runs off the page, and page
+     * numbers in the footer.
+     */
     public byte[] generatePdf(ReportRequest request) throws IOException {
 
-        List<String> columns = request.getColumns();
-        List<Map<String, Object>> rows = request.getRows();
+        List<String> columns = request.getColumns() == null ? List.of() : request.getColumns();
+        List<Map<String, Object>> rows = request.getRows() == null ? List.of() : request.getRows();
+        String title = pdfSafe(request.getTitle() == null ? "Report" : request.getTitle());
+
+        PDFont titleFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+        PDFont headerFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+        PDFont bodyFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+
+        PDRectangle pageSize = new PDRectangle(PDRectangle.A4.getHeight(), PDRectangle.A4.getWidth());
+        float tableWidth = pageSize.getWidth() - 2 * PDF_MARGIN;
+        float[] widths = columnWidths(columns, rows, headerFont, bodyFont, tableWidth);
 
         try (PDDocument document = new PDDocument()) {
 
-            PDFont titleFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
-            PDFont headerFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
-            PDFont bodyFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
-
-            float margin = 50;
-            float pageHeight = PDRectangle.A4.getHeight();
-            float rowHeight = 18;
-
             int rowIndex = 0;
-            boolean firstPage = true;
+            int pageNumber = 0;
 
-            while (firstPage || rowIndex < rows.size()) {
-
-                PDPage page = new PDPage(PDRectangle.A4);
+            do {
+                pageNumber++;
+                PDPage page = new PDPage(pageSize);
                 document.addPage(page);
 
-                PDPageContentStream cs = new PDPageContentStream(document, page);
+                try (PDPageContentStream cs = new PDPageContentStream(document, page)) {
+                    float y = pageSize.getHeight() - PDF_MARGIN;
 
-                float y = pageHeight - margin;
-
-                if (firstPage) {
-                    cs.beginText();
-                    cs.setFont(titleFont, 16);
-                    cs.newLineAtOffset(margin, y);
-                    cs.showText(request.getTitle() == null ? "Report" : request.getTitle());
-                    cs.endText();
-                    y -= 28;
-                    firstPage = false;
-                }
-
-                cs.beginText();
-                cs.setFont(headerFont, 9);
-                cs.newLineAtOffset(margin, y);
-                cs.showText(String.join("   |   ", columns));
-                cs.endText();
-                y -= rowHeight;
-
-                int maxRowsThisPage = (int) ((y - margin) / rowHeight);
-
-                if (maxRowsThisPage > 0 && rowIndex < rows.size()) {
-
-                    cs.beginText();
-                    cs.setFont(bodyFont, 9);
-                    cs.newLineAtOffset(margin, y);
-
-                    int rowsThisPage = 0;
-
-                    while (rowIndex < rows.size() && rowsThisPage < maxRowsThisPage) {
-
-                        Map<String, Object> row = rows.get(rowIndex);
-
-                        StringBuilder line = new StringBuilder();
-                        for (String col : columns) {
-                            Object value = row.get(col);
-                            line.append(value == null ? "-" : value.toString()).append("   |   ");
-                        }
-
-                        cs.showText(line.toString());
-                        cs.newLineAtOffset(0, -rowHeight);
-
-                        rowIndex++;
-                        rowsThisPage++;
+                    if (pageNumber == 1) {
+                        text(cs, titleFont, 16, PDF_MARGIN, y - 12, title);
+                        text(cs, bodyFont, 9, PDF_MARGIN, y - 28,
+                                "Generated " + java.time.LocalDateTime.now().withNano(0).toString().replace('T', ' ')
+                                        + "   |   " + rows.size() + " record(s)");
+                        y -= 44;
                     }
 
-                    cs.endText();
-                }
+                    // Header row
+                    y = drawRow(cs, headerFont, columns, widths, y, true);
 
-                cs.close();
+                    // Body rows until the page is full
+                    while (rowIndex < rows.size() && y - PDF_ROW_HEIGHT > PDF_MARGIN + 14) {
+                        Map<String, Object> row = rows.get(rowIndex);
+                        List<String> cells = new java.util.ArrayList<>();
+                        for (String col : columns) {
+                            Object value = row.get(col);
+                            cells.add(value == null ? "" : value.toString());
+                        }
+                        y = drawRow(cs, bodyFont, cells, widths, y, false);
+                        rowIndex++;
+                    }
 
-                if (rows.isEmpty()) {
-                    break;
+                    if (rows.isEmpty()) {
+                        text(cs, bodyFont, 9, PDF_MARGIN, y - 14, "No records match the selected filters.");
+                    }
+
+                    text(cs, bodyFont, 8, pageSize.getWidth() - PDF_MARGIN - 40, PDF_MARGIN - 14,
+                            "Page " + pageNumber);
                 }
-            }
+            } while (rowIndex < rows.size());
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             document.save(out);
             return out.toByteArray();
         }
+    }
+
+    /** Draws one table row (grey background for the header) and returns the y below it. */
+    private float drawRow(PDPageContentStream cs, PDFont font, List<String> cells, float[] widths,
+                          float y, boolean header) throws IOException {
+        float x = PDF_MARGIN;
+        float bottom = y - PDF_ROW_HEIGHT;
+
+        if (header) {
+            cs.setNonStrokingColor(0.88f, 0.91f, 0.93f);
+            cs.addRect(PDF_MARGIN, bottom, sum(widths), PDF_ROW_HEIGHT);
+            cs.fill();
+            cs.setNonStrokingColor(0f, 0f, 0f);
+        }
+
+        cs.setStrokingColor(0.75f, 0.75f, 0.75f);
+        cs.setLineWidth(0.5f);
+        for (int i = 0; i < widths.length; i++) {
+            cs.addRect(x, bottom, widths[i], PDF_ROW_HEIGHT);
+            cs.stroke();
+            String value = i < cells.size() ? cells.get(i) : "";
+            String fitted = fit(pdfSafe(value), font, widths[i] - 2 * PDF_CELL_PADDING);
+            text(cs, font, PDF_FONT_SIZE, x + PDF_CELL_PADDING, bottom + 5, fitted);
+            x += widths[i];
+        }
+        return bottom;
+    }
+
+    /** Widths proportional to each column's longest value (capped), scaled to fill the table. */
+    private float[] columnWidths(List<String> columns, List<Map<String, Object>> rows,
+                                 PDFont headerFont, PDFont bodyFont, float tableWidth) throws IOException {
+        float[] widths = new float[columns.size()];
+        float total = 0;
+        for (int i = 0; i < columns.size(); i++) {
+            float w = textWidth(headerFont, pdfSafe(columns.get(i)));
+            for (Map<String, Object> row : rows) {
+                Object v = row.get(columns.get(i));
+                if (v != null) {
+                    w = Math.max(w, textWidth(bodyFont, pdfSafe(v.toString())));
+                }
+            }
+            widths[i] = Math.min(Math.max(w, 30), 260) + 2 * PDF_CELL_PADDING;
+            total += widths[i];
+        }
+        float scale = total == 0 ? 1 : tableWidth / total;
+        for (int i = 0; i < widths.length; i++) {
+            widths[i] *= scale;
+        }
+        return widths;
+    }
+
+    private static void text(PDPageContentStream cs, PDFont font, float size, float x, float y, String value)
+            throws IOException {
+        cs.beginText();
+        cs.setFont(font, size);
+        cs.newLineAtOffset(x, y);
+        cs.showText(value);
+        cs.endText();
+    }
+
+    private static float textWidth(PDFont font, String value) throws IOException {
+        return font.getStringWidth(value) / 1000 * PDF_FONT_SIZE;
+    }
+
+    /** Shortens a value with "..." until it fits the available width. */
+    private static String fit(String value, PDFont font, float maxWidth) throws IOException {
+        if (textWidth(font, value) <= maxWidth) {
+            return value;
+        }
+        String cut = value;
+        while (!cut.isEmpty() && textWidth(font, cut + "...") > maxWidth) {
+            cut = cut.substring(0, cut.length() - 1);
+        }
+        return cut.isEmpty() ? "" : cut + "...";
+    }
+
+    /** The standard PDF fonts only cover Latin-1; replace anything else so the report never fails. */
+    static String pdfSafe(String value) {
+        StringBuilder out = new StringBuilder(value.length());
+        for (char c : value.toCharArray()) {
+            switch (c) {
+                case '\u2013', '\u2014' -> out.append('-');
+                case '\u2018', '\u2019' -> out.append('\'');
+                case '\u201C', '\u201D' -> out.append('"');
+                case '\n', '\r', '\t' -> out.append(' ');
+                default -> out.append((c >= 0x20 && c <= 0x7E) || (c >= 0xA0 && c <= 0xFF) ? c : '?');
+            }
+        }
+        return out.toString();
+    }
+
+    private static float sum(float[] values) {
+        float total = 0;
+        for (float v : values) {
+            total += v;
+        }
+        return total;
     }
 
     // ---------- DOCX ----------

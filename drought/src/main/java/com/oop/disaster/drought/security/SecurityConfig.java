@@ -28,8 +28,8 @@ public class SecurityConfig {
                         // Public endpoints (Swagger, Actuator)
 
                         .requestMatchers(
-                                "/auth/**",
-                                "/actuator/**",
+                                "/actuator/health",
+                                "/actuator/info",
                                 "/v3/api-docs/**",
                                 "/v3/api-docs.yaml",
                                 "/swagger-ui/**",

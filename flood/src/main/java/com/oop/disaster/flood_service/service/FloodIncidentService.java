@@ -25,7 +25,7 @@ public class FloodIncidentService {
     }
 
     // CREATE
-    public FloodIncident createIncident(FloodIncident incident) {
+    public FloodIncident createIncident(FloodIncident incident, String actor) {
 
         incident.setApprovalStatus("PENDING");
         incident.setRejectionReason(null);
@@ -35,7 +35,7 @@ public class FloodIncidentService {
         saveAudit(
                 saved.getId(),
                 "SUBMITTED",
-                "RECORDER",
+                actor,
                 "New flood incident submitted"
         );
 
@@ -58,7 +58,7 @@ public class FloodIncidentService {
     }
 
     // UPDATE
-    public FloodIncident updateIncident(Long id, FloodIncident incident) {
+    public FloodIncident updateIncident(Long id, FloodIncident incident, String actor) {
 
         FloodIncident existing = repository.findById(id)
                 .orElseThrow(() ->
@@ -68,7 +68,6 @@ public class FloodIncidentService {
         existing.setDistrict(incident.getDistrict());
         existing.setProvince(incident.getProvince());
         existing.setOccurrenceDateTime(incident.getOccurrenceDateTime());
-        existing.setReporter(incident.getReporter());
         existing.setSeverity(incident.getSeverity());
         existing.setStatus(incident.getStatus());
         existing.setLatitude(incident.getLatitude());
@@ -91,18 +90,20 @@ public class FloodIncidentService {
             saveAudit(
                     saved.getId(),
                     "RESUBMITTED",
-                    "RECORDER",
+                    actor,
                     "Corrections made and incident resubmitted for approval"
             );
 
             return saved;
         }
 
-        return repository.save(existing);
+        FloodIncident saved = repository.save(existing);
+        saveAudit(saved.getId(), "UPDATED", actor, "Flood incident edited");
+        return saved;
     }
 
     // APPROVE
-    public FloodIncident approveIncident(Long id) {
+    public FloodIncident approveIncident(Long id, String actor) {
 
         FloodIncident incident = repository.findById(id)
                 .orElseThrow(() ->
@@ -121,7 +122,7 @@ public class FloodIncidentService {
         saveAudit(
                 saved.getId(),
                 "APPROVED",
-                "PROVINCIAL_SUPERVISOR",
+                actor,
                 "Flood incident approved"
         );
 
@@ -129,7 +130,7 @@ public class FloodIncidentService {
     }
 
     // REJECT
-    public FloodIncident rejectIncident(Long id, String reason) {
+    public FloodIncident rejectIncident(Long id, String reason, String actor) {
 
         FloodIncident incident = repository.findById(id)
                 .orElseThrow(() ->
@@ -153,7 +154,7 @@ public class FloodIncidentService {
         saveAudit(
                 saved.getId(),
                 "REJECTED",
-                "PROVINCIAL_SUPERVISOR",
+                actor,
                 reason
         );
 
@@ -161,7 +162,7 @@ public class FloodIncidentService {
     }
 
     // REQUEST CORRECTIONS
-    public FloodIncident requestCorrections(Long id, String reason) {
+    public FloodIncident requestCorrections(Long id, String reason, String actor) {
 
         FloodIncident incident = repository.findById(id)
                 .orElseThrow(() ->
@@ -185,7 +186,7 @@ public class FloodIncidentService {
         saveAudit(
                 saved.getId(),
                 "CORRECTIONS_REQUESTED",
-                "PROVINCIAL_SUPERVISOR",
+                actor,
                 reason
         );
 
@@ -198,8 +199,9 @@ public class FloodIncidentService {
     }
 
     // DELETE
-    public void deleteIncident(Long id) {
+    public void deleteIncident(Long id, String actor) {
         repository.deleteById(id);
+        saveAudit(id, "DELETED", actor, "Flood incident deleted");
     }
 
     // SAVE AUDIT RECORD

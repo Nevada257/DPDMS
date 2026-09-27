@@ -11,41 +11,103 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.oop.disaster.flood_service.AlertClient;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Flood incident REST API.
+ *
+ * Role rules (enforced here and in SecurityConfig, never only in the UI):
+ *  - RECORDER   : creates incidents for their own ward only; sees approved
+ *                 incidents plus their own submissions; edits/deletes only
+ *                 their own, not-yet-approved records.
+ *  - SUPERVISOR : (flood only - checked by JwtAuthenticationFilter) sees all
+ *                 flood records and approves / rejects / requests corrections.
+ *  - ADMIN      : provincial administrator - read only, may see pending records.
+ *  - NATIONAL   : read only, approved records only.
+ */
 @RestController
 @RequestMapping("/api/floods")
 public class FloodIncidentController {
 
     private final FloodIncidentService service;
     private final JwtService jwtService;
+    private final AlertClient alertClient;
 
-    public FloodIncidentController(FloodIncidentService service, JwtService jwtService) {
+    public FloodIncidentController(FloodIncidentService service, JwtService jwtService,
+                                   AlertClient alertClient) {
         this.service = service;
         this.jwtService = jwtService;
+        this.alertClient = alertClient;
     }
 
-    private String extractToken(HttpServletRequest request) {
+    /** Identity of the caller, taken from the signed JWT. */
+    private record Caller(String username, String role, String ward) {
+        boolean is(String r) { return r.equalsIgnoreCase(role); }
+    }
+
+    private Caller caller(HttpServletRequest request) {
         String header = request.getHeader("Authorization");
-        if (header != null && header.startsWith("Bearer ")) {
-            return header.substring(7);
+        if (header == null || !header.startsWith("Bearer ")) {
+            return new Caller(null, null, null);
+        }
+        String token = header.substring(7);
+        return new Caller(
+                jwtService.extractUsername(token),
+                jwtService.extractRole(token),
+                jwtService.extractWard(token));
+    }
+
+    private static ResponseEntity<Map<String, String>> forbidden(String message) {
+        return ResponseEntity.status(403).body(Map.of("error", "Forbidden: " + message));
+    }
+
+    /** Pending / rejected records are visible only to their recorder, the supervisor and the admin. */
+    private boolean isVisible(FloodIncident incident, Caller c) {
+        if ("APPROVED".equals(incident.getApprovalStatus())) {
+            return true;
+        }
+        if (c.role() == null) {
+            return false;
+        }
+        if (c.is("SUPERVISOR") || c.is("ADMIN")) {
+            return true;
+        }
+        if (c.is("RECORDER")) {
+            return c.username() != null && c.username().equalsIgnoreCase(incident.getReporter());
+        }
+        return false; // NATIONAL and anyone else: approved only
+    }
+
+    /** Recorders may change only their own records, in their own ward, before approval. */
+    private ResponseEntity<Map<String, String>> checkRecorderCanModify(FloodIncident existing, Caller c) {
+        if (c.ward() != null && existing.getWard() != null
+                && !c.ward().equalsIgnoreCase(existing.getWard())) {
+            return forbidden("this incident belongs to a different ward");
+        }
+        if (c.username() == null || !c.username().equalsIgnoreCase(existing.getReporter())) {
+            return forbidden("you can only modify incidents you captured");
+        }
+        if ("APPROVED".equals(existing.getApprovalStatus())) {
+            return forbidden("approved incidents can no longer be modified");
         }
         return null;
     }
 
-    private boolean isVisible(FloodIncident incident, String role, String username) {
-        if (incident.getApprovalStatus() != null && incident.getApprovalStatus().equals("APPROVED")) {
-            return true;
-        }
-        if ("SUPERVISOR".equalsIgnoreCase(role)) {
-            return true;
-        }
-        if ("NATIONAL".equalsIgnoreCase(role)) {
-            return false;
-        }
-        return username != null && username.equalsIgnoreCase(incident.getReporter());
+    /** Sends the incident to the alert-service, which decides whether it meets the alert criteria. */
+    private FloodIncident raiseAlert(FloodIncident i) {
+        Map<String, Object> indicators = new LinkedHashMap<>();
+        indicators.put("peakWaterLevel", i.getPeakWaterLevel());
+        indicators.put("riverBasin", i.getRiverBasin());
+        indicators.put("householdsDisplaced", i.getHouseholdsDisplaced());
+        indicators.put("areaFlooded", i.getAreaFlooded());
+        indicators.put("durationOfInundation", i.getDurationOfInundation());
+        alertClient.notifyIncident("FLOOD", i.getId(), i.getWard(), i.getDistrict(), i.getProvince(),
+                i.getSeverity(), i.getLatitude(), i.getLongitude(), indicators);
+        return i;
     }
 
     @PostMapping
@@ -53,48 +115,25 @@ public class FloodIncidentController {
             @Valid @RequestBody FloodIncident incident,
             HttpServletRequest request) {
 
-        String token = extractToken(request);
+        Caller c = caller(request);
 
-        if (token != null) {
-            String role = jwtService.extractRole(token);
-            String ward = jwtService.extractWard(token);
-            String username = jwtService.extractUsername(token);
-
-            if ("RECORDER".equalsIgnoreCase(role)) {
-
-                if (ward != null
-                        && incident.getWard() != null
-                        && !ward.equalsIgnoreCase(incident.getWard())) {
-
-                    return ResponseEntity.status(403).body(
-                            Map.of("error", "Forbidden: you can only capture incidents for your own ward (" + ward + ")")
-                    );
-                }
-
-                incident.setReporter(username);
+        if (c.ward() != null) {
+            if (incident.getWard() == null || incident.getWard().isBlank()) {
+                incident.setWard(c.ward());
+            } else if (!c.ward().equalsIgnoreCase(incident.getWard())) {
+                return forbidden("you can only capture incidents for your own ward (" + c.ward() + ")");
             }
         }
+        incident.setReporter(c.username());
 
-        return ResponseEntity.ok(
-                service.createIncident(incident)
-        );
+        return ResponseEntity.ok(raiseAlert(service.createIncident(incident, c.username())));
     }
 
     @GetMapping
     public List<FloodIncident> getAllIncidents(HttpServletRequest request) {
-
-        String token = extractToken(request);
-        List<FloodIncident> all = service.getAllIncidents();
-
-        if (token == null) {
-            return all.stream().filter(i -> "APPROVED".equals(i.getApprovalStatus())).toList();
-        }
-
-        String role = jwtService.extractRole(token);
-        String username = jwtService.extractUsername(token);
-
-        return all.stream()
-                .filter(i -> isVisible(i, role, username))
+        Caller c = caller(request);
+        return service.getAllIncidents().stream()
+                .filter(i -> isVisible(i, c))
                 .toList();
     }
 
@@ -110,18 +149,9 @@ public class FloodIncidentController {
 
         Optional<FloodIncident> found = service.getIncidentById(id);
 
-        if (found.isEmpty()) {
+        if (found.isEmpty() || !isVisible(found.get(), caller(request))) {
             return ResponseEntity.notFound().build();
         }
-
-        String token = extractToken(request);
-        String role = token != null ? jwtService.extractRole(token) : null;
-        String username = token != null ? jwtService.extractUsername(token) : null;
-
-        if (!isVisible(found.get(), role, username)) {
-            return ResponseEntity.notFound().build();
-        }
-
         return ResponseEntity.ok(found.get());
     }
 
@@ -131,97 +161,70 @@ public class FloodIncidentController {
             @Valid @RequestBody FloodIncident incident,
             HttpServletRequest request) {
 
-        String token = extractToken(request);
-
-        if (token != null) {
-            String role = jwtService.extractRole(token);
-            String ward = jwtService.extractWard(token);
-
-            if ("RECORDER".equalsIgnoreCase(role) && ward != null) {
-                Optional<FloodIncident> existing = service.getIncidentById(id);
-
-                if (existing.isPresent()
-                        && existing.get().getWard() != null
-                        && !ward.equalsIgnoreCase(existing.get().getWard())) {
-
-                    return ResponseEntity.status(403).body(
-                            Map.of("error", "Forbidden: this incident belongs to a different ward")
-                    );
-                }
-            }
-        }
-
-        try {
-            return ResponseEntity.ok(
-                    service.updateIncident(id, incident)
-            );
-
-        } catch (RuntimeException e) {
+        Caller c = caller(request);
+        Optional<FloodIncident> existing = service.getIncidentById(id);
+        if (existing.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
+
+        ResponseEntity<Map<String, String>> denied = checkRecorderCanModify(existing.get(), c);
+        if (denied != null) {
+            return denied;
+        }
+        // The ward cannot be moved outside the recorder's own ward.
+        if (c.ward() != null && incident.getWard() != null
+                && !c.ward().equalsIgnoreCase(incident.getWard())) {
+            return forbidden("you can only capture incidents for your own ward (" + c.ward() + ")");
+        }
+
+        return ResponseEntity.ok(raiseAlert(service.updateIncident(id, incident, c.username())));
     }
 
     @PostMapping("/{id}/approve")
-    public ResponseEntity<?> approveIncident(
-            @PathVariable Long id) {
-
+    public ResponseEntity<?> approveIncident(@PathVariable Long id, HttpServletRequest request) {
         try {
-            return ResponseEntity.ok(
-                    service.approveIncident(id)
-            );
-
+            return ResponseEntity.ok(service.approveIncident(id, caller(request).username()));
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(
-                    Map.of("error", e.getMessage())
-            );
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
     @PostMapping("/{id}/reject")
     public ResponseEntity<?> rejectIncident(
             @PathVariable Long id,
-            @RequestBody Map<String, String> request) {
-
+            @RequestBody Map<String, String> body,
+            HttpServletRequest request) {
         try {
-            String reason = request.get("reason");
-
             return ResponseEntity.ok(
-                    service.rejectIncident(id, reason)
-            );
-
+                    service.rejectIncident(id, body.get("reason"), caller(request).username()));
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(
-                    Map.of("error", e.getMessage())
-            );
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
     @PostMapping("/{id}/corrections")
     public ResponseEntity<?> requestCorrections(
             @PathVariable Long id,
-            @RequestBody Map<String, String> request) {
-
+            @RequestBody Map<String, String> body,
+            HttpServletRequest request) {
         try {
-            String reason = request.get("reason");
-
             return ResponseEntity.ok(
-                    service.requestCorrections(id, reason)
-            );
-
+                    service.requestCorrections(id, body.get("reason"), caller(request).username()));
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(
-                    Map.of("error", e.getMessage())
-            );
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
     @GetMapping("/{id}/audit")
     public ResponseEntity<List<FloodAuditLog>> getAuditHistory(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            HttpServletRequest request) {
 
-        return ResponseEntity.ok(
-                service.getAuditHistory(id)
-        );
+        Optional<FloodIncident> found = service.getIncidentById(id);
+        if (found.isPresent() && !isVisible(found.get(), caller(request))) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(service.getAuditHistory(id));
     }
 
     @DeleteMapping("/{id}")
@@ -229,28 +232,18 @@ public class FloodIncidentController {
             @PathVariable Long id,
             HttpServletRequest request) {
 
-        String token = extractToken(request);
-
-        if (token != null) {
-            String role = jwtService.extractRole(token);
-            String ward = jwtService.extractWard(token);
-
-            if ("RECORDER".equalsIgnoreCase(role) && ward != null) {
-                Optional<FloodIncident> existing = service.getIncidentById(id);
-
-                if (existing.isPresent()
-                        && existing.get().getWard() != null
-                        && !ward.equalsIgnoreCase(existing.get().getWard())) {
-
-                    return ResponseEntity.status(403).body(
-                            Map.of("error", "Forbidden: this incident belongs to a different ward")
-                    );
-                }
-            }
+        Caller c = caller(request);
+        Optional<FloodIncident> existing = service.getIncidentById(id);
+        if (existing.isEmpty()) {
+            return ResponseEntity.notFound().build();
         }
 
-        service.deleteIncident(id);
+        ResponseEntity<Map<String, String>> denied = checkRecorderCanModify(existing.get(), c);
+        if (denied != null) {
+            return denied;
+        }
 
+        service.deleteIncident(id, c.username());
         return ResponseEntity.noContent().build();
     }
 }
