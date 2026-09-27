@@ -45,6 +45,9 @@ $hazardFolders = [ordered]@{
     mining   = "mining-accident-service"
 }
 
+# "powershell -File" passes "flood,fire" as one string - split it
+$Only = @($Only | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+
 if ($Only.Count -gt 0) {
     foreach ($h in $Only) {
         if (-not $hazardFolders.Contains($h.ToLower())) {
