@@ -12,7 +12,7 @@ const API_URL = "http://localhost:8080";
 const MAP_CENTRE = [-16.65, 32.2];
 
 const HAZARDS = [
-  { key: "FLOOD", panel: null, label: "Flood", color: "#2563eb" },
+  { key: "FLOOD", panel: "flood", label: "Flood", color: "#2563eb" },
   { key: "DROUGHT", panel: "drought", label: "Drought", color: "#d97706" },
   { key: "FIRE", panel: "fire", label: "Fire", color: "#dc2626" },
   { key: "ZOONOTIC", panel: "zoonotic", label: "Zoonotic Disease", color: "#7c3aed" },
@@ -147,7 +147,7 @@ function TrendChart({ trend }) {
   );
 }
 
-function NationalDashboard({ credentials, onLogout, onBack }) {
+function NationalDashboard({ credentials, onLogout, onBack, onOpenFlood }) {
   const [overview, setOverview] = useState(null);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [applied, setApplied] = useState(EMPTY_FILTERS);
@@ -344,7 +344,12 @@ function NationalDashboard({ credentials, onLogout, onBack }) {
               </div>
               {visibleHazards.map((h) => (
                 <div key={h.key}
-                     onClick={() => allHazards && h.panel && setActivePanel(h.panel)}
+                     onClick={() => {
+                       if (!allHazards || !h.panel) return;
+                       // The flood screen lives in App.jsx, so App switches to it
+                       if (h.panel === "flood") { if (onOpenFlood) onOpenFlood(); }
+                       else setActivePanel(h.panel);
+                     }}
                      style={{
                        ...card, textAlign: "center", borderLeft: `4px solid ${h.color}`,
                        cursor: allHazards && h.panel ? "pointer" : "default"

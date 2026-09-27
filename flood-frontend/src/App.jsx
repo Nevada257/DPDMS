@@ -46,6 +46,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   // Hazard-scoped users can open the dashboard (limited to their own hazard)
   const [showDashboard, setShowDashboard] = useState(false);
+  // National / admin users opening the flood screen from their dashboard
+  const [floodDrill, setFloodDrill] = useState(false);
 
   const [form, setForm] = useState({
     ward: "",
@@ -394,6 +396,7 @@ function App() {
 
   const logout = () => {
     setShowDashboard(false);
+    setFloodDrill(false);
     setCredentials(null);
     setIncidents([]);
 
@@ -539,9 +542,16 @@ function App() {
 
   // --------------------------------------------------
   // NATIONAL USERS AND THE PROVINCIAL ADMIN GET THE CROSS-HAZARD DASHBOARD
-  if (credentials.hazardScope === "ALL") {
+  if (credentials.hazardScope === "ALL" && !floodDrill) {
     return (
-      <NationalDashboard credentials={credentials} onLogout={logout} />
+      <NationalDashboard
+        credentials={credentials}
+        onLogout={logout}
+        onOpenFlood={() => {
+          setFloodDrill(true);
+          loadIncidents(credentials.auth);
+        }}
+      />
     );
   }
 
@@ -558,7 +568,11 @@ function App() {
 
   const dashboardButton = (
     <button
-      onClick={() => setShowDashboard(true)}
+      onClick={() =>
+        credentials.hazardScope === "ALL"
+          ? setFloodDrill(false)
+          : setShowDashboard(true)
+      }
       style={{
         position: "fixed", right: "24px", bottom: "24px", zIndex: 1000,
         background: "#0f766e", color: "white", border: "none", borderRadius: "24px",
@@ -566,7 +580,9 @@ function App() {
         boxShadow: "0 2px 8px rgba(0,0,0,0.25)"
       }}
     >
-      Dashboard, map & reports
+      {credentials.hazardScope === "ALL"
+        ? "← Back to national dashboard"
+        : "Dashboard, map & reports"}
     </button>
   );
 
