@@ -44,6 +44,8 @@ function App() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Hazard-scoped users can open the dashboard (limited to their own hazard)
+  const [showDashboard, setShowDashboard] = useState(false);
 
   const [form, setForm] = useState({
     ward: "",
@@ -391,6 +393,7 @@ function App() {
   // --------------------------------------------------
 
   const logout = () => {
+    setShowDashboard(false);
     setCredentials(null);
     setIncidents([]);
 
@@ -535,34 +538,71 @@ function App() {
     );
 
   // --------------------------------------------------
-  // NATIONAL USERS GET A CROSS-HAZARD DASHBOARD INSTEAD
+  // NATIONAL USERS AND THE PROVINCIAL ADMIN GET THE CROSS-HAZARD DASHBOARD
   if (credentials.hazardScope === "ALL") {
     return (
       <NationalDashboard credentials={credentials} onLogout={logout} />
     );
   }
 
+  // Everyone else can switch to a dashboard for their own hazard
+  if (showDashboard) {
+    return (
+      <NationalDashboard
+        credentials={credentials}
+        onLogout={logout}
+        onBack={() => setShowDashboard(false)}
+      />
+    );
+  }
+
+  const dashboardButton = (
+    <button
+      onClick={() => setShowDashboard(true)}
+      style={{
+        position: "fixed", right: "24px", bottom: "24px", zIndex: 1000,
+        background: "#0f766e", color: "white", border: "none", borderRadius: "24px",
+        padding: "12px 20px", fontWeight: "bold", cursor: "pointer",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.25)"
+      }}
+    >
+      Dashboard, map & reports
+    </button>
+  );
 
   if (credentials.hazardScope === "DROUGHT") {
     return (
-      <DroughtPanel credentials={credentials} onLogout={logout} />
+      <>
+        <DroughtPanel credentials={credentials} onLogout={logout} />
+        {dashboardButton}
+      </>
     );
   }
-   if (credentials.hazardScope === "FIRE") {
+
+  if (credentials.hazardScope === "FIRE") {
     return (
-      <FirePanel credentials={credentials} onLogout={logout} />
+      <>
+        <FirePanel credentials={credentials} onLogout={logout} />
+        {dashboardButton}
+      </>
     );
   }
 
   if (credentials.hazardScope === "MINING") {
     return (
-      <MiningPanel credentials={credentials} onLogout={logout} />
+      <>
+        <MiningPanel credentials={credentials} onLogout={logout} />
+        {dashboardButton}
+      </>
     );
   }
 
   if (credentials.hazardScope === "ZOONOTIC") {
     return (
-      <ZoonoticPanel credentials={credentials} onLogout={logout} />
+      <>
+        <ZoonoticPanel credentials={credentials} onLogout={logout} />
+        {dashboardButton}
+      </>
     );
   }
 
@@ -571,6 +611,7 @@ function App() {
 
   return (
     <div className="dashboard">
+      {dashboardButton}
 
       {/* TOP BAR */}
       <header className="topbar">
