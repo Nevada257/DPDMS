@@ -18,12 +18,10 @@ This service is responsible only for zoonotic disease incidents.
 - Java 21
 - Spring Boot 4.0.8
 - Maven
-- PostgreSQL
+- MySQL
 - Spring Data JPA / Hibernate
 - Spring Security
 - JWT authentication
-- React
-- Vite
 - Swagger / OpenAPI
 - Spring Boot Actuator
 - JUnit 5
@@ -76,11 +74,13 @@ Incident statuses include:
 
 The service uses JWT signed-token authentication.
 
-Users first log in through:
+Users log in through the shared auth-service (via the gateway):
 
-POST /api/auth/login
+POST http://localhost:8080/api/auth/login
 
-A successful login returns a JWT token.
+The returned JWT carries the user's role, hazardScope and ward. This service
+accepts only tokens scoped to ZOONOTIC, or cross-hazard (ALL) tokens held by
+NATIONAL or ADMIN users; any other token is rejected with 403.
 
 The token must then be supplied in API requests using:
 
@@ -145,10 +145,6 @@ occurs.
 ---
 
 ## 7. REST API Endpoints
-
-### Authentication
-
-POST /api/auth/login
 
 ### Zoonotic Incidents
 
@@ -216,33 +212,18 @@ This provides traceability of important incident workflow changes.
 
 ## 10. Frontend
 
-The frontend is implemented using React and Vite.
-
-React was selected because the overall group project uses React for the
-frontend, allowing this service to integrate more easily with the group's
-central frontend.
-
-The frontend provides:
-
-- Login
-- Dashboard
-- Incident listing
-- Incident creation
-- Supervisor approval
-- Rejection
-- Correction requests
-- Audit trail viewing
-- Logout
+This service has no front end of its own. The group's shared React front end
+(`flood-frontend/`, ZoonoticPanel) is used for all hazards.
 
 ---
 
 ## 11. Database
 
-The service uses PostgreSQL.
+The service uses MySQL.
 
 Database:
 
-dpdms_zoonotic
+zoonotic_db
 
 The service maintains its own database/schema so that it can operate as an
 independent microservice.
@@ -259,27 +240,7 @@ Windows:
 
 The backend runs on:
 
-    http://localhost:8085
-
----
-
-## 13. Running the React Frontend
-
-Navigate to the frontend directory:
-
-    cd frontend
-
-Install dependencies:
-
-    npm.cmd install
-
-Start the React development server:
-
-    npm.cmd run dev
-
-The frontend runs on:
-
-    http://localhost:5173
+    http://localhost:8084
 
 ---
 
@@ -287,7 +248,7 @@ The frontend runs on:
 
 Swagger UI is available at:
 
-    http://localhost:8085/swagger-ui/index.html
+    http://localhost:8084/swagger-ui/index.html
 
 The OpenAPI documentation describes the available REST endpoints and supports
 JWT bearer authentication.
@@ -300,11 +261,11 @@ Spring Boot Actuator provides health and metrics endpoints.
 
 Health:
 
-    http://localhost:8085/actuator/health
+    http://localhost:8084/actuator/health
 
 Metrics:
 
-    http://localhost:8085/actuator/metrics
+    http://localhost:8084/actuator/metrics
 
 ---
 

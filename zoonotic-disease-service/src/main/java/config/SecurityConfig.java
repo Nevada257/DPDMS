@@ -45,24 +45,6 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
 
                         // =========================
-                        // FRONTEND PAGES
-                        // =========================
-
-                        .requestMatchers(
-                                "/",
-                                "/login",
-                                "/dashboard",
-                                "/incidents",
-                                "/create-incident",
-                                "/supervisor",
-                                "/audit",
-                                "/audit/**",
-                                "/css/**",
-                                "/js/**",
-                                "/images/**"
-                        ).permitAll()
-
-                        // =========================
                         // SWAGGER
                         // =========================
 
@@ -72,14 +54,6 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
-                        ).permitAll()
-
-                        // =========================
-                        // LOGIN
-                        // =========================
-
-                        .requestMatchers(
-                                "/api/auth/login"
                         ).permitAll()
 
                         // =========================
