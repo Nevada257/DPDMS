@@ -127,6 +127,12 @@ powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1 -Only flood
 powershell -ExecutionPolicy Bypass -File scripts\start-all.ps1 -Only flood,fire -WithExtras   # + alert, report, dashboard
 ```
 
+If Windows Terminal is installed, every service opens as a **tab in one window**. Stop everything with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\stop-all.ps1
+```
+
 Services that are not running simply degrade: alerts are skipped, and the dashboard lists the missing hazards as unavailable.
 
 **Manually,** in this order, each in its own terminal with the environment variables set:

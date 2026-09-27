@@ -28,12 +28,21 @@ Get-Content $envFile | Where-Object { $_ -match '^\s*[A-Z_]+=' } | ForEach-Objec
     [Environment]::SetEnvironmentVariable($name.Trim(), $value.Trim(), "Process")
 }
 
+# Windows Terminal ("wt") is used when available: every service becomes a tab in
+# ONE window called "dpdms". Otherwise each service gets its own window.
+$useTabs = [bool](Get-Command wt.exe -ErrorAction SilentlyContinue)
+
 function Start-Service($folder, $waitSeconds) {
     $path = Join-Path $root $folder
     if (-not (Test-Path $path)) { Write-Warning "$folder not found - skipped"; return }
     Write-Host "Starting $folder ..."
-    Start-Process powershell -WorkingDirectory $path -ArgumentList "-NoExit", "-Command",
-        "`$host.UI.RawUI.WindowTitle = '$folder'; .\mvnw.cmd -q spring-boot:run"
+    if ($useTabs) {
+        Start-Process wt.exe -ArgumentList @("-w", "dpdms", "new-tab", "--title", $folder, "-d", "`"$path`"",
+            "powershell", "-NoExit", "-Command", ".\mvnw.cmd -q spring-boot:run")
+    } else {
+        Start-Process powershell -WorkingDirectory $path -ArgumentList "-NoExit", "-Command",
+            "`$host.UI.RawUI.WindowTitle = '$folder'; .\mvnw.cmd -q spring-boot:run"
+    }
     Start-Sleep -Seconds $waitSeconds
 }
 
@@ -74,9 +83,20 @@ if ($extras) {
 Start-Service "dpdms-api-gateway"        15
 
 Write-Host "Starting front end ..."
-Start-Process powershell -WorkingDirectory (Join-Path $root "flood-frontend") -ArgumentList "-NoExit", "-Command",
-    "`$host.UI.RawUI.WindowTitle = 'frontend'; if (-not (Test-Path node_modules)) { npm install }; npm run dev"
+$frontend = Join-Path $root "flood-frontend"
+if (-not (Test-Path (Join-Path $frontend "node_modules"))) {
+    Write-Host "Installing front-end packages (first run only) ..."
+    Push-Location $frontend; npm install; Pop-Location
+}
+if ($useTabs) {
+    Start-Process wt.exe -ArgumentList @("-w", "dpdms", "new-tab", "--title", "frontend", "-d", "`"$frontend`"",
+        "powershell", "-NoExit", "-Command", "npm run dev")
+} else {
+    Start-Process powershell -WorkingDirectory $frontend -ArgumentList "-NoExit", "-Command",
+        "`$host.UI.RawUI.WindowTitle = 'frontend'; npm run dev"
+}
 
 Write-Host ""
 Write-Host "Eureka dashboard : http://localhost:8761"
 Write-Host "Front end        : http://localhost:5173   (login e.g. national_user / password123)"
+Write-Host "Stop everything  : powershell -ExecutionPolicy Bypass -File scripts\stop-all.ps1"
