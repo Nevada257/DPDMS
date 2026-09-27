@@ -53,7 +53,10 @@ jobs:
         working-directory: ${{ matrix.module }}
         run: |
           set -o pipefail
-          mvn -B -ntp verify -Deureka.client.enabled=false -Dsurefire.trimStackTrace=false 2>&1 | tee build.log
+          # Services skip Eureka registration in tests; the Eureka server itself needs its client beans
+          EXTRA="-Deureka.client.enabled=false"
+          [ "${{ matrix.module }}" = "discovery-service" ] && EXTRA=""
+          mvn -B -ntp verify $EXTRA -Dsurefire.trimStackTrace=false 2>&1 | tee build.log
       - name: Report errors as annotations
         if: failure()
         working-directory: ${{ matrix.module }}
