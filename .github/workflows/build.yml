@@ -33,14 +33,18 @@ jobs:
       DB_PASSWORD: ci-password
       JWT_SECRET: ci-only-secret-key-for-dpdms-tests-0123456789
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
           cache: maven
       - name: Create databases used by integration tests
         run: |
+          for i in $(seq 1 60); do
+            mysqladmin -h127.0.0.1 -uroot -pci-password ping --silent && break
+            sleep 2
+          done
           for db in auth_db flood_db drought_db fire_db zoonotic_db mining_accident_db alert_db; do
             mysql -h127.0.0.1 -uroot -pci-password -e "CREATE DATABASE IF NOT EXISTS $db"
           done
@@ -51,8 +55,8 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
       - working-directory: flood-frontend
