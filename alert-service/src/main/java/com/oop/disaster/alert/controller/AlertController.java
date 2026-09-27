@@ -69,6 +69,18 @@ public class AlertController {
                 : logs.findByHazardIgnoreCaseOrderBySentAtDesc(hazard);
     }
 
+    /**
+     * Sends a test alert to every active subscriber by email and WhatsApp, so the
+     * provincial administrator can confirm delivery. Results appear in the alert log.
+     */
+    @PostMapping("/test")
+    public ResponseEntity<Map<String, Object>> test(@AuthenticationPrincipal AuthUser user) {
+        dispatcher.dispatchTest(user.username());
+        return ResponseEntity.accepted().body(Map.of(
+                "queued", true,
+                "subscribers", subscribers.findAll().stream().filter(Subscriber::isActive).count()));
+    }
+
     // ---------------- Subscribers (provincial administrator only) ----------------
 
     @GetMapping("/subscribers")

@@ -23,25 +23,55 @@ public class WhatsAppSender {
     private final String apiUrl;
     private final String phoneNumberId;
     private final String token;
+    private final String templateName;
+    private final String templateLanguage;
 
     public WhatsAppSender(@Value("${alerts.whatsapp.api-url:https://graph.facebook.com/v21.0}") String apiUrl,
                           @Value("${alerts.whatsapp.phone-number-id:}") String phoneNumberId,
-                          @Value("${alerts.whatsapp.token:}") String token) {
+                          @Value("${alerts.whatsapp.token:}") String token,
+                          @Value("${alerts.whatsapp.fallback-template:hello_world}") String templateName,
+                          @Value("${alerts.whatsapp.fallback-language:en_US}") String templateLanguage) {
         this.apiUrl = apiUrl;
         this.phoneNumberId = phoneNumberId;
         this.token = token;
+        this.templateName = templateName;
+        this.templateLanguage = templateLanguage;
     }
 
     public boolean isConfigured() {
         return token != null && !token.isBlank() && phoneNumberId != null && !phoneNumberId.isBlank();
     }
 
-    /** Sends the message; throws if the API does not accept it. */
+    /** Sends a free-text message; throws if the API does not accept it. */
     public void send(String phone, String text) throws IOException, InterruptedException {
-        String to = phone.replaceAll("[^0-9]", ""); // API expects digits only, with country code
-        String body = "{\"messaging_product\":\"whatsapp\",\"to\":\"" + to
+        String body = "{\"messaging_product\":\"whatsapp\",\"to\":\"" + digits(phone)
                 + "\",\"type\":\"text\",\"text\":{\"preview_url\":false,\"body\":\"" + json(text) + "\"}}";
+        post(body);
+    }
 
+    /**
+     * Sends a pre-approved template message. WhatsApp only delivers free text to a
+     * number that has messaged the business in the last 24 hours; outside that window
+     * only an approved template gets through, so this is the fallback.
+     */
+    public void sendTemplate(String phone) throws IOException, InterruptedException {
+        String body = "{\"messaging_product\":\"whatsapp\",\"to\":\"" + digits(phone)
+                + "\",\"type\":\"template\",\"template\":{\"name\":\"" + json(templateName)
+                + "\",\"language\":{\"code\":\"" + json(templateLanguage) + "\"}}}";
+        post(body);
+    }
+
+    /** True if the API refused free text because the 24-hour conversation window is closed. */
+    public static boolean isOutsideConversationWindow(Exception e) {
+        String m = e.getMessage() == null ? "" : e.getMessage();
+        return m.contains("131047") || m.contains("131026") || m.toLowerCase().contains("re-engagement");
+    }
+
+    private static String digits(String phone) {
+        return phone.replaceAll("[^0-9]", ""); // API expects digits only, with country code
+    }
+
+    private void post(String body) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(URI.create(apiUrl + "/" + phoneNumberId + "/messages"))
                 .timeout(Duration.ofSeconds(15))
                 .header("Authorization", "Bearer " + token)

@@ -156,6 +156,7 @@ function NationalDashboard({ credentials, onLogout, onBack, onOpenFlood }) {
   const [activePanel, setActivePanel] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [reportBusy, setReportBusy] = useState("");
+  const [testAlertMsg, setTestAlertMsg] = useState("");
 
   const authHeader = { Authorization: `Bearer ${credentials.auth}` };
   const allHazards = credentials.hazardScope === "ALL";
@@ -228,6 +229,20 @@ function NationalDashboard({ credentials, onLogout, onBack, onOpenFlood }) {
       setError(`Report could not be generated: ${err.message}`);
     }
     setReportBusy("");
+  };
+
+  // Provincial administrator: send a test alert to every subscriber, then refresh the log
+  const sendTestAlert = async () => {
+    setTestAlertMsg("Sending test alert…");
+    try {
+      const r = await fetch(`${API_URL}/api/alerts/test`, { method: "POST", headers: authHeader });
+      if (!r.ok) throw new Error(`alert-service returned ${r.status}`);
+      const body = await r.json();
+      setTestAlertMsg(`Test alert queued for ${body.subscribers} subscriber(s). Refreshing the log…`);
+      setTimeout(() => { load(); setTestAlertMsg(""); }, 8000);
+    } catch (err) {
+      setTestAlertMsg(`Test alert failed: ${err.message}`);
+    }
   };
 
   // Drill-in to a hazard's full panel (read-only for national / admin users)
@@ -474,7 +489,13 @@ function NationalDashboard({ credentials, onLogout, onBack, onOpenFlood }) {
             {/* Alert log */}
             {canSeeAlertLog && (
               <div style={{ ...card, marginTop: "20px" }}>
-                <h3 style={{ marginTop: 0 }}>Recent alerts sent</h3>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                  <h3 style={{ marginTop: 0 }}>Recent alerts sent</h3>
+                  {credentials.role === "ADMIN" && (
+                    <button style={secondaryButton} onClick={sendTestAlert}>Send test alert</button>
+                  )}
+                </div>
+                {testAlertMsg && <p style={{ color: "#0f766e" }}>{testAlertMsg}</p>}
                 {alerts.length === 0 && <p style={{ color: "#6b7280" }}>No alerts yet (or alert-service is offline).</p>}
                 {alerts.length > 0 && (
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
@@ -485,6 +506,7 @@ function NationalDashboard({ credentials, onLogout, onBack, onOpenFlood }) {
                         <th style={cell}>Channel</th>
                         <th style={cell}>Recipient</th>
                         <th style={cell}>Delivery</th>
+                        <th style={cell}>Tries</th>
                         <th style={cell}>Reason</th>
                       </tr>
                     </thead>
@@ -498,8 +520,9 @@ function NationalDashboard({ credentials, onLogout, onBack, onOpenFlood }) {
                           <td style={{
                             ...cell, fontWeight: "bold",
                             color: a.deliveryStatus === "FAILED" ? "#b91c1c" : a.deliveryStatus === "SENT" ? "#15803d" : "#6b7280"
-                          }}>{a.deliveryStatus}</td>
-                          <td style={cell}>{a.triggerReason}</td>
+                          }} title={a.errorMessage || ""}>{a.deliveryStatus}</td>
+                          <td style={cell}>{a.attempts ?? 1}</td>
+                          <td style={cell}>{a.triggerReason}{a.errorMessage ? ` (${a.errorMessage})` : ""}</td>
                         </tr>
                       ))}
                     </tbody>

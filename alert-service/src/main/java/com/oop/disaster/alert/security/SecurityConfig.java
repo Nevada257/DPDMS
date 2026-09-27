@@ -30,6 +30,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/alerts/incidents").hasAnyRole("RECORDER", "SUPERVISOR")
                 // Alert log: oversight roles (supervisors see their own hazard only)
                 .requestMatchers(HttpMethod.GET, "/api/alerts/logs").hasAnyRole("SUPERVISOR", "ADMIN", "NATIONAL")
+                // Test alert: provincial administrator only
+                .requestMatchers(HttpMethod.POST, "/api/alerts/test").hasRole("ADMIN")
                 // Recipient list is managed by the provincial administrator
                 .requestMatchers("/api/alerts/subscribers/**").hasRole("ADMIN")
                 .anyRequest().authenticated())

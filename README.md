@@ -262,6 +262,16 @@ Unit tests cover these rules; see [Testing](#13-testing).
 
 The message includes the location, severity, the reason for the alert and a Google Maps link to the GPS point.
 
+**Reliability.**
+- A failed send is **retried** up to 3 times, 2 s and then 4 s apart.
+- WhatsApp only delivers free text to a number that has messaged your business number in the last 24 hours. Outside that window the service automatically sends the approved **template message** (`hello_world` by default, `WHATSAPP_TEMPLATE`) instead, and notes this in the log.
+- The provincial administrator can press **Send test alert** on the dashboard (`POST /api/alerts/test`) to confirm both channels before a demo.
+
+**Setting up real delivery** (in `dpdms.env`):
+- **Email (Gmail):** `MAIL_HOST=smtp.gmail.com`, `MAIL_USERNAME` = your Gmail address, `MAIL_PASSWORD` = a 16-character App Password (Google Account → Security → 2-Step Verification → App passwords).
+- **WhatsApp:** at developers.facebook.com create an app, add WhatsApp, and open *API Setup*. Copy the temporary access token to `WHATSAPP_TOKEN` and the *Phone number ID* to `WHATSAPP_PHONE_NUMBER_ID`, then add your own number as an allowed recipient.
+- **Recipient:** `ALERT_DEMO_EMAIL` and `ALERT_DEMO_PHONE` (with country code). The "Provincial Duty Officer" subscriber is updated from these on every start.
+
 **Delivery log.** Every attempt is stored in `alert_log` with the hazard, incident, **channel, recipient, timestamp and delivery status**:
 - `SENT` — accepted by the provider;
 - `FAILED` — the provider returned an error, which is stored with the attempt;

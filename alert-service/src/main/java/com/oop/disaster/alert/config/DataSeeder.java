@@ -7,7 +7,11 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/** Seeds one demo subscriber (all hazards) the first time the service starts. */
+/**
+ * Keeps the demo subscriber ("Provincial Duty Officer", all hazards) in line with
+ * ALERT_DEMO_EMAIL and ALERT_DEMO_PHONE: created on first start, and updated on
+ * every start, so changing dpdms.env is enough to receive the demo alerts.
+ */
 @Configuration
 public class DataSeeder {
 
@@ -17,9 +21,14 @@ public class DataSeeder {
                                       @Value("${alerts.seed.email}") String email,
                                       @Value("${alerts.seed.phone}") String phone) {
         return args -> {
-            if (repo.count() == 0) {
-                repo.save(new Subscriber(name, email, phone, "ALL"));
-            }
+            Subscriber officer = repo.findAll().stream()
+                    .filter(s -> name.equals(s.getName()))
+                    .findFirst()
+                    .orElseGet(() -> new Subscriber(name, email, phone, "ALL"));
+            officer.setEmail(email);
+            officer.setPhone(phone);
+            officer.setActive(true);
+            repo.save(officer);
         };
     }
 }

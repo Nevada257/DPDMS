@@ -46,6 +46,9 @@ public class AlertLog {
     @Column(length = 500)
     private String errorMessage;
 
+    /** How many delivery attempts were made (retries on provider errors). */
+    private int attempts = 1;
+
     /** Who captured / acted on the incident that triggered the alert. */
     private String triggeredBy;
 
@@ -75,6 +78,8 @@ public class AlertLog {
     public void setDeliveryStatus(DeliveryStatus deliveryStatus) { this.deliveryStatus = deliveryStatus; }
     public String getErrorMessage() { return errorMessage; }
     public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
+    public int getAttempts() { return attempts; }
+    public void setAttempts(int attempts) { this.attempts = attempts; }
     public String getTriggeredBy() { return triggeredBy; }
     public void setTriggeredBy(String triggeredBy) { this.triggeredBy = triggeredBy; }
     public LocalDateTime getSentAt() { return sentAt; }
