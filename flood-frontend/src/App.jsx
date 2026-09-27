@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./App.css";
+import NationalDashboard from "./NationalDashboard";
 
 import {
   MapContainer,
@@ -23,7 +24,7 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png"
 });
 
-const API_URL = "http://localhost:8081";
+const API_URL = "http://localhost:8080";
 
 function App() {
   const [username, setUsername] = useState("");
@@ -76,7 +77,7 @@ function App() {
     try {
       const response = await fetch(`${API_URL}/api/floods`, {
         headers: {
-          Authorization: `Basic ${auth}`
+          Authorization: `Bearer ${auth}`
         }
       });
 
@@ -97,7 +98,7 @@ function App() {
   // LOGIN
   // --------------------------------------------------
 
-  const handleLogin = async (e) => {
+    const handleLogin = async (e) => {
     e.preventDefault();
 
     setError("");
@@ -105,12 +106,12 @@ function App() {
     setLoading(true);
 
     try {
-      const auth = btoa(`${username}:${password}`);
-
-      const response = await fetch(`${API_URL}/api/floods`, {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: "POST",
         headers: {
-          Authorization: `Basic ${auth}`
-        }
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ username, password })
       });
 
       if (response.status === 401) {
@@ -120,7 +121,7 @@ function App() {
       }
 
       if (!response.ok) {
-        setError("Unable to connect to Flood Service.");
+        setError("Unable to connect to Auth Service.");
         setLoading(false);
         return;
       }
@@ -128,19 +129,21 @@ function App() {
       const data = await response.json();
 
       setCredentials({
-        username,
-        role: getRole(username),
-        auth
+        username: data.username,
+        role: data.role,
+        hazardScope: data.hazardScope,
+        ward: data.ward,
+        auth: data.token
       });
 
-      setIncidents(Array.isArray(data) ? data : []);
+      await loadIncidents(data.token);
 
       setLoading(false);
     } catch (err) {
       console.error(err);
 
       setError(
-        "Flood Service is not available. Make sure it is running on port 8081."
+        "Could not reach the Gateway. Make sure it is running on port 8080."
       );
 
       setLoading(false);
@@ -236,7 +239,7 @@ function App() {
 
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Basic ${credentials.auth}`
+          Authorization: `Bearer ${credentials.auth}`
         },
 
         body: JSON.stringify(incident)
@@ -336,7 +339,7 @@ function App() {
         method: "POST",
 
         headers: {
-          Authorization: `Basic ${credentials.auth}`,
+          Authorization: `Bearer ${credentials.auth}`,
           "Content-Type": "application/json"
         }
       };
@@ -527,6 +530,14 @@ function App() {
     );
 
   // --------------------------------------------------
+  // NATIONAL USERS GET A CROSS-HAZARD DASHBOARD INSTEAD
+  if (credentials.hazardScope === "ALL") {
+    return (
+      <NationalDashboard credentials={credentials} onLogout={logout} />
+    );
+  }
+
+
   // DASHBOARD
   // --------------------------------------------------
 
