@@ -284,7 +284,7 @@ function App() {
       }
 
       setForm({
-        ward: "",
+        ward: credentials.ward || "",
         district: "",
         province: "",
         occurrenceDateTime: "",
@@ -1103,6 +1103,8 @@ function App() {
                     value={form.ward}
                     onChange={handleChange}
                     required
+                    readOnly={credentials.role === "RECORDER"}
+                    title={credentials.role === "RECORDER" ? "Recorders can only capture incidents in their own ward" : undefined}
                   />
 
                 </div>
@@ -1447,7 +1449,7 @@ function App() {
                     setEditingIncidentId(null);
 
                     setForm({
-                      ward: "",
+                      ward: credentials.ward || "",
                       district: "",
                       province: "",
                       occurrenceDateTime: "",

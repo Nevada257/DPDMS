@@ -100,7 +100,7 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        setError(body.error || "Could not save the incident.");
+        setError(body.message || body.error || "Could not save the incident.");
         return;
       }
 
@@ -143,7 +143,7 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        setError(body.error || "Could not delete the incident.");
+        setError(body.message || body.error || "Could not delete the incident.");
         return;
       }
 
@@ -178,7 +178,7 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        setError(body.error || "Action failed.");
+        setError(body.message || body.error || "Action failed.");
         return;
       }
 
@@ -337,7 +337,9 @@ function DroughtPanel({ credentials, onLogout, onBack }) {
             <h3>{editingId ? "Edit Incident" : "New Drought Incident"}</h3>
 
             <label style={labelStyle}>Ward</label>
-            <input style={inputStyle} name="ward" value={form.ward} onChange={handleChange} required />
+            <input style={inputStyle} name="ward" value={form.ward} onChange={handleChange} required
+              readOnly={credentials.role === "RECORDER"}
+              title={credentials.role === "RECORDER" ? "Recorders can only capture incidents in their own ward" : undefined} />
 
             <label style={labelStyle}>District</label>
             <input style={inputStyle} name="district" value={form.district} onChange={handleChange} required />
