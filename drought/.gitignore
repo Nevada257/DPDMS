@@ -34,7 +34,4 @@ build/
 target/  
 .idea/  
 *.iml  
-.mvn/  
-mvnw  
-mvnw.cmd  
 HELP.md 
