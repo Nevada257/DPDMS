@@ -8,13 +8,15 @@ $root = Split-Path -Parent $PSScriptRoot
 # 1. Find the mysql client
 $mysql = (Get-Command mysql -ErrorAction SilentlyContinue).Source
 if (-not $mysql) {
-    $candidates = @()
+    # In order of preference: the real MySQL 8 client first. XAMPP/WAMP ship a
+    # MariaDB client that cannot log in to MySQL 8 (caching_sha2_password).
     foreach ($base in @("$env:ProgramFiles\MySQL", "${env:ProgramFiles(x86)}\MySQL", "C:\xampp\mysql", "C:\wamp64\bin\mysql")) {
         if ($base -and (Test-Path $base)) {
-            $candidates += Get-ChildItem -Path $base -Filter mysql.exe -Recurse -ErrorAction SilentlyContinue -Depth 5
+            $found = Get-ChildItem -Path $base -Filter mysql.exe -Recurse -ErrorAction SilentlyContinue -Depth 5 |
+                Sort-Object FullName -Descending | Select-Object -First 1
+            if ($found) { $mysql = $found.FullName; break }
         }
     }
-    $mysql = ($candidates | Sort-Object FullName -Descending | Select-Object -First 1).FullName
 }
 if (-not $mysql) {
     Write-Host ""
