@@ -24,6 +24,7 @@ class AlertDispatcherReliabilityTest {
     private AlertLogRepository logs;
     private EmailSender email;
     private WhatsAppSender whatsApp;
+    private GreenApiWhatsAppSender greenApi;
     private AlertDispatcher dispatcher;
 
     private final IncidentAlertRequest fire = new IncidentAlertRequest("FIRE", 7L, "Ward 1", "Rushinga",
@@ -35,9 +36,10 @@ class AlertDispatcherReliabilityTest {
         logs = mock(AlertLogRepository.class);
         email = mock(EmailSender.class);
         whatsApp = mock(WhatsAppSender.class);
+        greenApi = mock(GreenApiWhatsAppSender.class); // not configured by default: Meta Cloud API is used
         when(email.isConfigured()).thenReturn(true);
         when(whatsApp.isConfigured()).thenReturn(true);
-        dispatcher = new AlertDispatcher(subscribers, logs, email, whatsApp, 3, 0);
+        dispatcher = new AlertDispatcher(subscribers, logs, email, whatsApp, greenApi, 3, 0);
     }
 
     private List<AlertLog> savedLogs(int expected) {
@@ -119,5 +121,39 @@ class AlertDispatcherReliabilityTest {
     void outsideWindowErrorsAreRecognised() {
         assertTrue(WhatsAppSender.isOutsideConversationWindow(new IOException("... \"code\":131047 ...")));
         assertFalse(WhatsAppSender.isOutsideConversationWindow(new IOException("401 invalid token")));
+    }
+
+    @Test
+    void greenApiIsUsedInsteadOfMetaWhenConfigured() throws Exception {
+        when(greenApi.isConfigured()).thenReturn(true);
+
+        dispatcher.deliver(fire, "fire is still burning", "fire_recorder",
+                List.of(new Subscriber("Only phone", null, "+263771234567", "ALL")));
+
+        verify(greenApi).send(eq("+263771234567"), contains("FIRE"), contains("DPDMS FIRE ALERT"));
+        verify(whatsApp, never()).send(anyString(), anyString());
+        AlertLog entry = savedLogs(1).get(0);
+        assertEquals(DeliveryStatus.SENT, entry.getDeliveryStatus());
+        assertEquals("via Green API", entry.getErrorMessage());
+    }
+
+    @Test
+    void greenApiFailuresAreRetriedAndLogged() throws Exception {
+        when(greenApi.isConfigured()).thenReturn(true);
+        doThrow(new IOException("Green API returned 401: Unauthorized"))
+                .when(greenApi).send(anyString(), anyString(), anyString());
+
+        dispatcher.deliver(fire, "fire is still burning", "fire_recorder",
+                List.of(new Subscriber("Only phone", null, "+263771234567", "ALL")));
+
+        verify(greenApi, times(3)).send(anyString(), anyString(), anyString());
+        AlertLog entry = savedLogs(1).get(0);
+        assertEquals(DeliveryStatus.FAILED, entry.getDeliveryStatus());
+        assertTrue(entry.getErrorMessage().startsWith("Green API:"));
+    }
+
+    @Test
+    void greenApiChatIdIsDigitsWithSuffix() {
+        assertEquals("263771234567@c.us", GreenApiWhatsAppSender.chatId("+263 77 123 4567"));
     }
 }

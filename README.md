@@ -270,6 +270,7 @@ The message includes the location, severity, the reason for the alert and a Goog
 **Setting up real delivery** (in `dpdms.env`):
 - **Email (Gmail):** `MAIL_HOST=smtp.gmail.com`, `MAIL_USERNAME` = your Gmail address, `MAIL_PASSWORD` = a 16-character App Password (Google Account → Security → 2-Step Verification → App passwords).
 - **WhatsApp:** at developers.facebook.com create an app, add WhatsApp, and open *API Setup*. Copy the temporary access token to `WHATSAPP_TOKEN` and the *Phone number ID* to `WHATSAPP_PHONE_NUMBER_ID`, then add your own number as an allowed recipient.
+- **WhatsApp through Green API (alternative):** at green-api.com create a free instance, scan its QR code with WhatsApp, and copy `apiUrl`, `idInstance` and `apiTokenInstance` to `GREENAPI_API_URL`, `GREENAPI_ID_INSTANCE` and `GREENAPI_API_TOKEN`. When these are set, Green API is used instead of the Meta Cloud API: no 24-hour window, no template and no token that expires daily. The log shows "via Green API".
 - **Recipient:** `ALERT_DEMO_EMAIL` and `ALERT_DEMO_PHONE` (with country code). The "Provincial Duty Officer" subscriber is updated from these on every start.
 
 **Delivery log.** Every attempt is stored in `alert_log` with the hazard, incident, **channel, recipient, timestamp and delivery status**:

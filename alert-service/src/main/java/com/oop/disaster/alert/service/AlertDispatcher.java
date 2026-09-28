@@ -24,7 +24,9 @@ import java.util.List;
  *  - runs on the "alertExecutor" thread pool, so the caller is never blocked;
  *  - a failed send is retried (default 3 attempts, 2 s then 4 s apart);
  *  - WhatsApp only delivers free text to numbers that messaged the business in the
- *    last 24 hours; outside that window the approved template message is sent instead.
+ *    last 24 hours; outside that window the approved template message is sent instead;
+ *  - WhatsApp goes through Green API when GREENAPI_* is configured (no 24-hour
+ *    window, no daily token), otherwise through the Meta WhatsApp Cloud API.
  */
 @Service
 public class AlertDispatcher {
@@ -46,18 +48,20 @@ public class AlertDispatcher {
     private final AlertLogRepository logs;
     private final EmailSender email;
     private final WhatsAppSender whatsApp;
+    private final GreenApiWhatsAppSender greenApi;
     private final int maxAttempts;
     private final long backoffMs;
 
     @Autowired
     public AlertDispatcher(SubscriberRepository subscribers, AlertLogRepository logs,
-                           EmailSender email, WhatsAppSender whatsApp,
+                           EmailSender email, WhatsAppSender whatsApp, GreenApiWhatsAppSender greenApi,
                            @Value("${alerts.retry.max-attempts:3}") int maxAttempts,
                            @Value("${alerts.retry.backoff-ms:2000}") long backoffMs) {
         this.subscribers = subscribers;
         this.logs = logs;
         this.email = email;
         this.whatsApp = whatsApp;
+        this.greenApi = greenApi;
         this.maxAttempts = Math.max(1, maxAttempts);
         this.backoffMs = Math.max(0, backoffMs);
     }
@@ -94,7 +98,7 @@ public class AlertDispatcher {
                 sendEmail(incident, reason, triggeredBy, s.getEmail(), subject, text);
             }
             if (s.getPhone() != null && !s.getPhone().isBlank()) {
-                sendWhatsApp(incident, reason, triggeredBy, s.getPhone(), text);
+                sendWhatsApp(incident, reason, triggeredBy, s.getPhone(), subject, text);
             }
         }
     }
@@ -115,10 +119,23 @@ public class AlertDispatcher {
         }
     }
 
-    private void sendWhatsApp(IncidentAlertRequest i, String reason, String by, String to, String text) {
+    private void sendWhatsApp(IncidentAlertRequest i, String reason, String by, String to,
+                              String subject, String text) {
+        if (greenApi.isConfigured()) {
+            Outcome g = withRetry(() -> greenApi.send(to, subject, text), false);
+            if (g.delivered()) {
+                record(i, reason, by, Channel.WHATSAPP, to, text, DeliveryStatus.SENT, g.attempts(), "via Green API");
+            } else {
+                log.warn("Green API WhatsApp alert to {} failed after {} attempt(s): {}",
+                        to, g.attempts(), g.error().getMessage());
+                record(i, reason, by, Channel.WHATSAPP, to, text, DeliveryStatus.FAILED, g.attempts(),
+                        "Green API: " + g.error().getMessage());
+            }
+            return;
+        }
         if (!whatsApp.isConfigured()) {
             record(i, reason, by, Channel.WHATSAPP, to, text, DeliveryStatus.SIMULATED, 0,
-                    "WHATSAPP_TOKEN not configured - message not sent");
+                    "No WhatsApp provider configured (GREENAPI_* or WHATSAPP_TOKEN) - message not sent");
             return;
         }
         Outcome o = withRetry(() -> whatsApp.send(to, text), true);
