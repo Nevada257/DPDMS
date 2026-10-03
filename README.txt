@@ -5,7 +5,7 @@
 
 This file explains how to get the system running on a Windows computer
 and lists every login. Full technical details are in README.md and
-docs\DPDMS_System_Assignment.docx.
+DPDMS_System_Assignment.docx.
 
 
 ---------------------------------------------------------------------
