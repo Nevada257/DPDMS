@@ -112,6 +112,8 @@ powershell -ExecutionPolicy Bypass -File scripts\load-seed-data.ps1
 
 Or run the files in [`database/`](database/) in order with any MySQL client. User accounts are created by the services at start-up, because passwords must be BCrypt-hashed.
 
+A full export of the databases (structure and data) is saved in [`database/export/`](database/export/) by `package-submission.bat`; restore it with `mysql -u root -p < database\export\dpdms_database_dump.sql`.
+
 ### 3. Start everything
 
 **Windows, double-click:** `start-dpdms.bat` in the project folder (and `stop-dpdms.bat` to stop). Or with one command:
