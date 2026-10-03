@@ -47,7 +47,7 @@ New-Item -ItemType Directory -Force -Path $exportDir | Out-Null
 $dumpFile = Join-Path $exportDir "dpdms_database_dump.sql"
 Write-Host "Exporting $($databases.Count) databases with $dump ..."
 $dumpArgs = @("-u", "root", "-p$password", "--databases") + $databases +
-        @("--routines", "--add-drop-database", "--default-character-set=utf8mb4", "--result-file=$dumpFile")
+        @("--routines", "--single-transaction", "--set-gtid-purged=OFF", "--add-drop-database", "--default-character-set=utf8mb4", "--result-file=$dumpFile")
 & $dump @dumpArgs 2>&1 | Where-Object { $_ -notmatch 'Using a password on the command line' } | ForEach-Object { Write-Host $_ }
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $dumpFile)) {
     Write-Host "Database export failed. Is MySQL running and is DB_PASSWORD in dpdms.env correct?" -ForegroundColor Red
